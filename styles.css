@@ -1,0 +1,116 @@
+/* Screenplay Formatting Styles */
+
+.script-scene,
+.script-character,
+.script-dialogue,
+.script-parenthetical,
+.script-transition,
+.script-action {
+    color: var(--text-normal) !important;
+}
+
+/* Scene Heading: . */
+.script-scene {
+    font-weight: bold !important;
+    text-transform: uppercase;
+    text-align: left !important;
+    margin-top: 2.5em !important;
+    margin-bottom: 1em !important;
+    /* display: list-item !important;  <-- REMOVED: 避免在非列表的 p 元素上出現黑點 */
+
+    border-bottom: none !important;
+    /* 避免 h1-h6 的預設底線 */
+    /* 懸掛縮排：如果場景標題太長，第二行對齊文字而不是編號 */
+    padding-left: 0 !important;
+
+}
+
+/* 針對 Obsidian 列表的特定修正 */
+li.script-scene {
+    margin-top: 2em !important;
+    /* 列表項目的 margin 有時候會被吃掉，強制加強 */
+    display: list-item !important;
+    /* li 本身就是 list-item，這裡強調一下無妨，或是也不需要 */
+}
+
+li.script-scene::marker {
+    font-weight: bold !important;
+    /* 嘗試讓編號也變粗 */
+}
+
+/* Character: @ */
+.script-character {
+    text-transform: uppercase;
+    text-align: center !important;
+    padding-left: 0 !important;
+    margin-left: 20% !important;
+    margin-right: 20% !important;
+    margin-top: 1.5em !important;
+    margin-bottom: 0px !important;
+    padding-bottom: 0px !important;
+    display: block !important;
+    font-weight: bold !important;
+}
+
+/* Dialogue: : or ： */
+/* 螢幕閱讀模式：使用較寬的縮排 (20%) 以保持劇本感 */
+.script-dialogue {
+    text-align: justify !important;
+    margin-left: 20% !important;
+    margin-right: 20% !important;
+    margin-top: 0px !important;
+    margin-bottom: 1em !important;
+    display: block !important;
+    white-space: pre-wrap !important;
+}
+
+/* Parenthetical: ( */
+.script-parenthetical {
+    text-align: center !important;
+    margin-left: 30% !important;
+    margin-right: 30% !important;
+    margin-bottom: 0px !important;
+    font-style: italic !important;
+    display: block !important;
+    color: var(--text-muted) !important;
+}
+
+/* Transition: CUT TO: etc. */
+.script-transition {
+    text-align: right !important;
+    text-transform: uppercase;
+    margin-top: 1.5em !important;
+    margin-bottom: 1em !important;
+    display: block !important;
+    margin-right: 1em !important;
+    color: var(--text-normal) !important;
+}
+
+/* PDF Export / Print Settings */
+@media print {
+
+    .script-character {
+        margin-left: 10% !important;
+        margin-right: 10% !important;
+        width: auto !important;
+        text-align: center !important;
+    }
+
+    .script-dialogue {
+        margin-left: 10% !important;
+        margin-right: 10% !important;
+        /* 強制防呆：確保對白不會變成粗體 */
+        font-weight: normal !important;
+    }
+
+    .script-parenthetical {
+        margin-left: 10% !important;
+        margin-right: 10% !important;
+    }
+}
+
+/* 針對 Reading View 的修正 */
+.markdown-preview-view p.script-character {
+    background-color: transparent !important;
+    /* 防止被 highlight 干擾 */
+}
