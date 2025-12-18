@@ -27,7 +27,7 @@
 
 /* 針對 Obsidian 列表的特定修正 */
 li.script-scene {
-    margin-top: 2em !important;
+    margin-top: 3em !important;
     /* 列表項目的 margin 有時候會被吃掉，強制加強 */
     display: list-item !important;
     /* li 本身就是 list-item，這裡強調一下無妨，或是也不需要 */
@@ -90,22 +90,22 @@ li.script-scene::marker {
 @media print {
 
     .script-character {
-        margin-left: 10% !important;
-        margin-right: 10% !important;
-        width: auto !important;
+        /* margin-left: 10% !important;*/
+        /* margin-right: 10% !important;*/
+        /* width: auto !important;*/
         text-align: center !important;
     }
 
     .script-dialogue {
-        margin-left: 10% !important;
-        margin-right: 10% !important;
+        margin-left: 11% !important;
+        margin-right: 11% !important;
         /* 強制防呆：確保對白不會變成粗體 */
         font-weight: normal !important;
     }
 
     .script-parenthetical {
-        margin-left: 10% !important;
-        margin-right: 10% !important;
+        margin-left: 11% !important;
+        margin-right: 11% !important;
     }
 }
 
@@ -113,4 +113,74 @@ li.script-scene::marker {
 .markdown-preview-view p.script-character {
     background-color: transparent !important;
     /* 防止被 highlight 干擾 */
+}
+
+/* ==========================================================================
+   Live Preview (Editing Mode) Styles
+   Prefix: .lp- (Live Preview)
+   Purpose: Separate styling for the editor to ensure stability and editability.
+   ========================================================================== */
+
+.lp-scene {
+    font-weight: bold !important;
+    text-transform: uppercase;
+    color: var(--text-normal) !important;
+    /* 編輯模式通常不需要過大的上下 margin，以免游標跳動 */
+}
+
+.lp-character {
+    font-weight: bold !important;
+    text-transform: uppercase;
+    text-align: center !important;
+    color: var(--text-normal) !important;
+    /* 不使用大 margin，避免編輯困難，改用 padding 或維持原狀 */
+}
+
+.lp-dialogue {
+    /* 編輯時保持靠左或些微縮排即可 -> 改為 10% 以接近閱讀模式 */
+    padding-left: 10% !important;
+    padding-right: 10% !important;
+    text-align: justify !important;
+    color: var(--text-normal) !important;
+}
+
+.lp-parenthetical {
+    font-style: italic !important;
+    color: var(--text-muted) !important;
+    padding-left: 10% !important;
+    padding-right: 10% !important;
+    text-align: center !important;
+}
+
+.lp-transition {
+    text-align: right !important;
+    text-transform: uppercase;
+    color: var(--text-normal) !important;
+}
+
+/* 讓編輯模式的符號（如 @）在非編輯狀態下隱藏 */
+.lp-marker-symbol {
+    color: transparent !important;
+    font-size: 1px !important;
+    /* 不完全為 0 以避免高度塌陷問題 */
+    letter-spacing: -1ch;
+    /* 嘗試縮減寬度 */
+}
+
+/* ==========================================================================
+   Header Styling (H1 Centering)
+   Only applies to fountain/script notes
+   ========================================================================== */
+
+/* Reading Mode */
+.markdown-preview-view.fountain h1,
+.markdown-preview-view.script h1 {
+    text-align: center !important;
+}
+
+/* Live Preview (Editing Mode) */
+/* 使用 .HyperMD-header-1 確保選中整行 */
+.markdown-source-view.fountain .HyperMD-header-1,
+.markdown-source-view.script .HyperMD-header-1 {
+    text-align: center !important;
 }

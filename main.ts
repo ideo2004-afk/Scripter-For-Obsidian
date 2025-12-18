@@ -1,101 +1,175 @@
-```
-import { Plugin, Editor, MarkdownView, Menu } from 'obsidian';
+import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting } from 'obsidian';
 import { Extension, RangeSetBuilder, StateField, Transaction } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView, WidgetType, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
 
-// 劇本符號定義
+// Script Symbols
 const SCRIPT_MARKERS = {
-    SCENE: '.',
     CHARACTER: '@',
-    DIALOGUE_HALF: ':',
-    DIALOGUE_FULL: '：',
     PARENTHETICAL: '(',
-    TRANSITION: '>'
 };
 
-// CSS 類別對應
+// Regex Definitions
+const SCENE_REGEX = /^(\d+[\.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[\.\s])/i;
+const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:\.]?))$/;
+const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
+const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
+
+// CSS Classes (Reading Mode / PDF)
 const CSS_CLASSES = {
     SCENE: 'script-scene',
     CHARACTER: 'script-character',
     DIALOGUE: 'script-dialogue',
     PARENTHETICAL: 'script-parenthetical',
     TRANSITION: 'script-transition',
-    // Action 預設不用 class，或是用一個基本的
     ACTION: 'script-action'
 };
 
+// LP Classes (Live Preview / Editing Mode)
+const LP_CLASSES = {
+    SCENE: 'lp-scene',
+    CHARACTER: 'lp-character',
+    DIALOGUE: 'lp-dialogue',
+    PARENTHETICAL: 'lp-parenthetical',
+    TRANSITION: 'lp-transition',
+    SYMBOL: 'lp-marker-symbol'
+}
+
 export default class ScripterPlugin extends Plugin {
     async onload() {
-        console.log('Loading Scripter for Obsidian (Fountain-Lite)');
+        console.log('Loading Scripter plugin');
 
-        // 1. 註冊 Markdown Post Processor (用於閱讀模式 & PDF 輸出)
-        this.registerMarkdownPostProcessor((element, context) => {
-            const lines = element.querySelectorAll('p'); // Obsidian 通常把每一段當作 p 渲染
-            
-            lines.forEach(p => {
-                const text = p.textContent || '';
-                const format = this.detectFormat(text);
-                
-                if (format) {
-                    p.addClass(format.cssClass);
-                    // 移除標記符號，只顯示內容
-                    // 注意：PDF 輸出時這裡會生效，讓符號消失
-                    // 但為了避免破壞可能有意義的文字（極少），我們只移除開頭的那個符號
-                    if (format.removePrefix) {
-                        // 使用 Node 替換文字內容，避免破壞內部可能的 HTML (如粗體語法)
-                        // 簡單起見，這裡假設劇本格式行內通常不包含複雜 Markdown
-                        // 如果有，我們只處理第一個 child text node
-                        this.stripMarkerFromElement(p, format.markerLength);
-                    }
-                } else {
-                    // 預設動作 (Action)
-                    p.addClass(CSS_CLASSES.ACTION);
-                }
-            });
+        // 1. Settings / Help Tab
+        this.addSettingTab(new ScripterSettingTab(this.app, this));
+
+        // 2. Command: Renumber Scenes
+        this.addCommand({
+            id: 'scripter-renumber-scenes',
+            name: 'Renumber Scenes',
+            editorCallback: (editor: Editor) => this.renumberScenes(editor)
         });
 
-        // 2. 註冊 Editor Extension (用於 Live Preview 編輯模式)
-        // 負責即時隱藏符號並套用 CSS
-        this.registerEditorExtension(scriptingField);
+        // 3. Post Processor (Reading Mode & PDF)
+        this.registerMarkdownPostProcessor((element, context) => {
+            // **Scope Check**: Only process if cssclasses includes 'fountain' or 'script'
+            const frontmatter = context.frontmatter;
+            const cssClasses = frontmatter?.cssclasses || [];
 
-        // 3. 右鍵選單 (Context Menu) - 插入對應符號
+            if (!Array.isArray(cssClasses) || (!cssClasses.includes('fountain') && !cssClasses.includes('script'))) {
+                return;
+            }
+
+            // Include 'li' to handle numbered lists
+            const lines = Array.from(element.querySelectorAll('p, div, blockquote, li'));
+            let previousType: string | null = null;
+
+            for (let i = 0; i < lines.length; i++) {
+                let p = lines[i] as HTMLElement;
+                // 使用 innerHTML 來偵測換行，解決 PDF 輸出時 DOM 結構合併問題
+                let rawContent = p.innerHTML;
+
+                // 1. 偵測 "Character + Dialogue" 的合併段落
+                const splitRegex = /<br\s*\/?>|\n/i;
+                const match = rawContent.match(splitRegex);
+
+                if (match) {
+                    const splitIndex = match.index!;
+                    const splitLen = match[0].length;
+
+                    // 取得第一行
+                    const tempDiv = document.createElement('div');
+                    const firstPartHtml = rawContent.substring(0, splitIndex);
+                    tempDiv.innerHTML = firstPartHtml;
+                    const firstPartText = tempDiv.textContent?.trim() || '';
+                    const firstFormat = this.detectExplicitFormat(firstPartText);
+
+                    if (firstFormat?.typeKey === 'CHARACTER') {
+                        // Action 1: 轉回純角色名
+                        p.textContent = firstPartText;
+                        this.applyFormatToElement(p, firstFormat);
+                        previousType = 'CHARACTER';
+
+                        // Action 2: 創建新 P
+                        const remainingHtml = rawContent.substring(splitIndex + splitLen);
+                        tempDiv.innerHTML = remainingHtml;
+                        const remainingText = tempDiv.textContent?.trim() || '';
+
+                        if (remainingText) {
+                            const newP = document.createElement('p');
+                            newP.textContent = remainingText;
+                            newP.addClass(CSS_CLASSES.DIALOGUE);
+                            p.insertAdjacentElement('afterend', newP);
+                            previousType = 'DIALOGUE';
+                        }
+                        continue;
+                    }
+                }
+
+                // 2. 正常單行處理
+                let text = p.textContent?.trim() || '';
+                if (!text) {
+                    previousType = null;
+                    continue;
+                }
+
+                const explicitFormat = this.detectExplicitFormat(text);
+
+                if (explicitFormat) {
+                    this.applyFormatToElement(p, explicitFormat);
+                    previousType = explicitFormat.typeKey;
+                } else {
+                    // Auto-Dialogue Detection
+                    if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
+                        p.addClass(CSS_CLASSES.DIALOGUE);
+                        previousType = 'DIALOGUE';
+                    } else {
+                        p.addClass(CSS_CLASSES.ACTION);
+                        previousType = 'ACTION';
+                    }
+                }
+            }
+        });
+
+        // 4. Editor Extension (Live Preview)
+        this.registerEditorExtension(this.livePreviewExtension());
+
+        // 5. Context Menu
         this.registerEvent(
             this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: MarkdownView) => {
-                menu.addItem((item) => {
-                    item
-                        .setTitle("Scripter")
-                        .setIcon("film");
-
+                menu.addItem((item: any) => {
+                    item.setTitle("Scripter").setIcon("film");
                     const subMenu = item.setSubmenu();
 
-                    subMenu.addItem((item) => {
-                        item.setTitle("Scene Heading (.)").setIcon("clapperboard")
-                            .onClick(() => this.toggleLinePrefix(editor, SCRIPT_MARKERS.SCENE));
+                    // Scene Heading Submenu
+                    subMenu.addItem((startItem: any) => {
+                        startItem.setTitle("Scene Heading").setIcon("clapperboard");
+                        const sceneMenu = startItem.setSubmenu();
+                        sceneMenu.addItem((i: any) => i.setTitle("EXT.").onClick(() => this.insertText(editor, "EXT. ", false)));
+                        sceneMenu.addItem((i: any) => i.setTitle("INT.").onClick(() => this.insertText(editor, "INT. ", false)));
+                        sceneMenu.addItem((i: any) => i.setTitle("I/E.").onClick(() => this.insertText(editor, "INT./EXT. ", false)));
                     });
 
-                    subMenu.addItem((item) => {
-                        item.setTitle("Character (@)").setIcon("user")
-                            .onClick(() => this.toggleLinePrefix(editor, SCRIPT_MARKERS.CHARACTER));
+                    this.addMenuItem(subMenu, "Character (@)", "user", editor, SCRIPT_MARKERS.CHARACTER);
+                    this.addMenuItem(subMenu, "Parenthetical ( ( )", "italic", editor, SCRIPT_MARKERS.PARENTHETICAL);
+
+                    // Transition Submenu
+                    subMenu.addItem((item: any) => {
+                        item.setTitle("Transition").setIcon("arrow-right");
+                        const m = item.setSubmenu();
+                        m.addItem((i: any) => i.setTitle("CUT TO:").onClick(() => this.insertText(editor, "CUT TO:", true)));
+                        m.addItem((i: any) => i.setTitle("FADE OUT.").onClick(() => this.insertText(editor, "FADE OUT.", true)));
+                        m.addItem((i: any) => i.setTitle("FADE IN:").onClick(() => this.insertText(editor, "FADE IN:", true)));
+                        m.addItem((i: any) => i.setTitle("DISSOLVE TO:").onClick(() => this.insertText(editor, "DISSOLVE TO:", true)));
                     });
 
-                    subMenu.addItem((item) => {
-                        item.setTitle("Dialogue (:)")
-                            .setIcon("message-circle")
-                            .onClick(() => this.toggleLinePrefix(editor, SCRIPT_MARKERS.DIALOGUE_HALF));
+                    subMenu.addSeparator();
+
+                    subMenu.addItem((subItem: any) => {
+                        subItem.setTitle("Renumber Scenes").setIcon("list-ordered")
+                            .onClick(() => this.renumberScenes(editor));
                     });
 
-                    subMenu.addItem((item) => {
-                        item.setTitle("Parenthetical ( ( )").setIcon("italic")
-                            .onClick(() => this.toggleLinePrefix(editor, SCRIPT_MARKERS.PARENTHETICAL));
-                    });
-
-                    subMenu.addItem((item) => {
-                        item.setTitle("Transition (>)").setIcon("arrow-right")
-                            .onClick(() => this.toggleLinePrefix(editor, SCRIPT_MARKERS.TRANSITION));
-                    });
-                     // Clear format
-                     subMenu.addItem((item) => {
-                        item.setTitle("Clear Format (Action)").setIcon("eraser")
+                    subMenu.addItem((subItem: any) => {
+                        subItem.setTitle("Clear Format").setIcon("eraser")
                             .onClick(() => this.clearLinePrefix(editor));
                     });
                 });
@@ -103,151 +177,292 @@ export default class ScripterPlugin extends Plugin {
         );
     }
 
-    // 核心邏輯：偵測格式
-    detectFormat(text: string): { cssClass: string, removePrefix: boolean, markerLength: number } | null {
-        if (text.startsWith(SCRIPT_MARKERS.SCENE)) return { cssClass: CSS_CLASSES.SCENE, removePrefix: true, markerLength: 1 };
-        if (text.startsWith(SCRIPT_MARKERS.CHARACTER)) return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: true, markerLength: 1 };
-        if (text.startsWith(SCRIPT_MARKERS.DIALOGUE_HALF)) return { cssClass: CSS_CLASSES.DIALOGUE, removePrefix: true, markerLength: 1 };
-        if (text.startsWith(SCRIPT_MARKERS.DIALOGUE_FULL)) return { cssClass: CSS_CLASSES.DIALOGUE, removePrefix: true, markerLength: 1 };
-        if (text.startsWith(SCRIPT_MARKERS.PARENTHETICAL)) return { cssClass: CSS_CLASSES.PARENTHETICAL, removePrefix: false, markerLength: 0 }; // 括號通常保留比較好看？或者您想移除開頭括號？先設為保留，因為通常後面有右括號
-        if (text.startsWith(SCRIPT_MARKERS.TRANSITION)) return { cssClass: CSS_CLASSES.TRANSITION, removePrefix: true, markerLength: 1 };
-        
-        return null;
-    }
-
-    // 輔助：移除 PostProcessor 中的標記
-    stripMarkerFromElement(element: HTMLElement, length: number) {
-        // 遞迴找到第一個 Text Node 並移除前 N 個字元
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-        const firstTextNode = walker.nextNode();
-        if (firstTextNode && firstTextNode.textContent) {
-            if (firstTextNode.textContent.length >= length) {
-                 firstTextNode.textContent = firstTextNode.textContent.substring(length);
-            }
-        }
-    }
-
-    // 輔助：在編輯器中切換符號
-    toggleLinePrefix(editor: Editor, prefix: string) {
-        const cursor = editor.getCursor();
-        const lineContent = editor.getLine(cursor.line);
-        
-        // 簡單邏輯：如果已經有其他前綴，替換掉；如果一樣，移除；如果沒有，加上
-        let newLineContent = lineContent;
-        
-        // 移除已知的所有標記
-        let hasMarker = false;
-        for (const marker of Object.values(SCRIPT_MARKERS)) {
-            if (lineContent.startsWith(marker)) {
-                if (marker === prefix) {
-                    // 已經是這個標記，則是 toggle off
-                    newLineContent = lineContent.substring(marker.length);
-                    hasMarker = true;
-                    break;
-                } else {
-                    // 是別的標記，替換掉
-                    newLineContent = prefix + lineContent.substring(marker.length);
-                    hasMarker = true;
-                    break;
-                }
-            }
-        }
-
-        if (!hasMarker) {
-            newLineContent = prefix + lineContent;
-        }
-
-        editor.setLine(cursor.line, newLineContent);
-    }
-
-    clearLinePrefix(editor: Editor) {
-         const cursor = editor.getCursor();
-         const lineContent = editor.getLine(cursor.line);
-         let newLineContent = lineContent;
-         
-         for (const marker of Object.values(SCRIPT_MARKERS)) {
-            if (lineContent.startsWith(marker)) {
-                newLineContent = lineContent.substring(marker.length);
-                break;
-            }
-        }
-        editor.setLine(cursor.line, newLineContent);
-    }
-
     onunload() {
         console.log('Unloading Scripter');
     }
-}
 
-// ------------------------------------------------------------------
-// CodeMirror 6 Extension for Live Preview
-// ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Live Preview Extension (CodeMirror 6)
+    // ------------------------------------------------------------------
+    livePreviewExtension() {
+        return ViewPlugin.fromClass(class {
+            decorations: DecorationSet;
 
-const scriptingField = ViewPlugin.fromClass(class {
-    decorations: DecorationSet;
+            constructor(view: EditorView) {
+                this.decorations = this.buildDecorations(view);
+            }
 
-    constructor(view: EditorView) {
-        this.decorations = this.buildDecorations(view);
-    }
+            update(update: ViewUpdate) {
+                if (update.docChanged || update.viewportChanged || update.selectionSet) {
+                    this.decorations = this.buildDecorations(update.view);
+                }
+            }
 
-    update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged) {
-            this.decorations = this.buildDecorations(update.view);
-        }
-    }
+            buildDecorations(view: EditorView): DecorationSet {
+                const builder = new RangeSetBuilder<Decoration>();
+                const selection = view.state.selection;
+                let previousType: string | null = null;
+                const hiddenDeco = Decoration.mark({ class: LP_CLASSES.SYMBOL });
 
-    buildDecorations(view: EditorView): DecorationSet {
-        const builder = new RangeSetBuilder<Decoration>();
-        
-        for (const { from, to } of view.visibleRanges) {
-            for (let pos = from; pos <= to;) {
-                const line = view.state.doc.lineAt(pos);
-                const text = line.text;
-                
-                // 1. 偵測格式
-                let type: string | null = null;
-                let markerLen = 0;
+                for (const { from, to } of view.visibleRanges) {
+                    for (let pos = from; pos <= to;) {
+                        const line = view.state.doc.lineAt(pos);
+                        const text = line.text;
+                        const trimmed = text.trim();
 
-                if (text.startsWith(SCRIPT_MARKERS.SCENE)) { type = CSS_CLASSES.SCENE; markerLen = 1; }
-                else if (text.startsWith(SCRIPT_MARKERS.CHARACTER)) { type = CSS_CLASSES.CHARACTER; markerLen = 1; }
-                else if (text.startsWith(SCRIPT_MARKERS.DIALOGUE_HALF)) { type = CSS_CLASSES.DIALOGUE; markerLen = 1; }
-                else if (text.startsWith(SCRIPT_MARKERS.DIALOGUE_FULL)) { type = CSS_CLASSES.DIALOGUE; markerLen = 1; }
-                else if (text.startsWith(SCRIPT_MARKERS.PARENTHETICAL)) { type = CSS_CLASSES.PARENTHETICAL; markerLen = 0; } // 不隱藏括號
-                else if (text.startsWith(SCRIPT_MARKERS.TRANSITION)) { type = CSS_CLASSES.TRANSITION; markerLen = 1; }
-                else { type = CSS_CLASSES.ACTION; markerLen = 0; }
+                        let lpClass = null;
+                        let currentType = 'ACTION';
+                        let shouldHideMarker = false;
 
-                if (type) {
-                    // 套用整行樣式
-                    builder.add(line.from, line.from, Decoration.line({
-                        attributes: { class: type }
-                    }));
+                        let isCursorOnLine = false;
+                        for (const range of selection.ranges) {
+                            if (range.head >= line.from && range.head <= line.to) {
+                                isCursorOnLine = true;
+                                break;
+                            }
+                        }
 
-                    // 2. 隱藏符號 (如果有的話，且不需要保留)
-                    // 注意：只在 Cursor 不在此行時隱藏？
-                    // 為了最佳體驗，我們使用 'replace' decoration 將符號替換為空，
-                    // 但這在編輯時可能會有點怪 (看使用者習慣)。
-                    // 比較安全的做法：只用 opacity 變淡，或者只有當 user 沒在編輯這行時才隱藏。
-                    // 這裡先簡單做：用 CSS class 來讓符號本身變淡或消失。
-                    // 但 CodeMirror 的 replace decoration 可以直接隱藏文字。
-                    
-                    if (markerLen > 0) {
-                        // 檢查 cursor 是否在此行
-                         // 這裡無法直接取得 cursor 位置進行動態更新 (效能考量)
-                         // 但可以透過 CSS 針對 .cm-activeLine 來控制
-                         
-                         // 我們在符號位置加上一個 Decoration class，讓 CSS 決定是否隱藏
-                         builder.add(line.from, line.from + markerLen, Decoration.mark({
-                             class: 'script-marker' 
-                         }));
+                        if (!trimmed) {
+                            currentType = 'EMPTY';
+                        }
+                        else if (SCENE_REGEX.test(text)) {
+                            lpClass = LP_CLASSES.SCENE;
+                            currentType = 'SCENE';
+                        }
+                        else if (TRANSITION_REGEX.test(text)) {
+                            lpClass = LP_CLASSES.TRANSITION;
+                            currentType = 'TRANSITION';
+                        }
+                        else if (PARENTHETICAL_REGEX.test(text)) {
+                            lpClass = LP_CLASSES.PARENTHETICAL;
+                            currentType = 'PARENTHETICAL';
+                        }
+                        else if (text.startsWith(SCRIPT_MARKERS.CHARACTER)) {
+                            lpClass = LP_CLASSES.CHARACTER;
+                            currentType = 'CHARACTER';
+                            if (!isCursorOnLine) {
+                                shouldHideMarker = true;
+                            }
+                        }
+                        else if (OS_DIALOGUE_REGEX.test(text)) {
+                            lpClass = LP_CLASSES.PARENTHETICAL;
+                            currentType = 'PARENTHETICAL';
+                        }
+                        else {
+                            if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
+                                lpClass = LP_CLASSES.DIALOGUE;
+                                currentType = 'DIALOGUE';
+                            } else {
+                                currentType = 'ACTION';
+                            }
+                        }
+
+                        if (lpClass) {
+                            builder.add(line.from, line.from, Decoration.line({
+                                attributes: { class: lpClass }
+                            }));
+                        }
+
+                        if (shouldHideMarker) {
+                            builder.add(line.from, line.from + 1, hiddenDeco);
+                        }
+
+                        previousType = currentType;
+                        pos = line.to + 1;
                     }
                 }
+                return builder.finish();
+            }
+        }, {
+            decorations: v => v.decorations
+        });
+    }
 
-                pos = line.to + 1;
+    // ------------------------------------------------------------------
+    // Core Logic
+    // ------------------------------------------------------------------
+
+    addMenuItem(menu: any, title: string, icon: string, editor: Editor, marker: string) {
+        menu.addItem((item: any) => {
+            item.setTitle(title).setIcon(icon).onClick(() => this.toggleLinePrefix(editor, marker));
+        });
+    }
+
+    detectExplicitFormat(text: string) {
+        if (SCENE_REGEX.test(text)) {
+            return { cssClass: CSS_CLASSES.SCENE, removePrefix: false, markerLength: 0, typeKey: 'SCENE' };
+        }
+        if (TRANSITION_REGEX.test(text)) {
+            return { cssClass: CSS_CLASSES.TRANSITION, removePrefix: false, markerLength: 0, typeKey: 'TRANSITION' };
+        }
+        if (PARENTHETICAL_REGEX.test(text)) {
+            return { cssClass: CSS_CLASSES.PARENTHETICAL, removePrefix: false, markerLength: 0, typeKey: 'PARENTHETICAL' };
+        }
+        if (OS_DIALOGUE_REGEX.test(text)) {
+            return { cssClass: CSS_CLASSES.PARENTHETICAL, removePrefix: false, markerLength: 0, typeKey: 'PARENTHETICAL' };
+        }
+        if (text.startsWith(SCRIPT_MARKERS.CHARACTER))
+            return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: true, markerLength: 1, typeKey: 'CHARACTER' };
+
+        return null;
+    }
+
+    applyFormatToElement(p: HTMLElement, format: any) {
+        p.addClass(format.cssClass);
+        if (format.removePrefix && format.markerLength > 0) {
+            this.stripMarkerFromElement(p, format.markerLength);
+        }
+    }
+
+    stripMarkerFromElement(element: HTMLElement, length: number) {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const firstTextNode = walker.nextNode();
+        if (firstTextNode) {
+            let text = firstTextNode.textContent || '';
+            const removeCount = length;
+            if (text.length >= removeCount) {
+                firstTextNode.textContent = text.substring(removeCount);
             }
         }
-        return builder.finish();
     }
-}, {
-    decorations: v => v.decorations
-});
-```
+
+    renumberScenes(editor: Editor) {
+        const lineCount = editor.lineCount();
+        let sceneCounter = 0;
+
+        for (let i = 0; i < lineCount; i++) {
+            const line = editor.getLine(i);
+            const trimmed = line.trim();
+            const match = trimmed.match(SCENE_REGEX);
+            if (match) {
+                sceneCounter++;
+                const sceneNumStr = sceneCounter.toString().padStart(2, '0') + ". ";
+                let contentWithoutNumber = trimmed;
+                if (match[1]) {
+                    contentWithoutNumber = trimmed.replace(/^\d+[\.\s]\s*/, '');
+                }
+                contentWithoutNumber = contentWithoutNumber.trim();
+                const newLine = sceneNumStr + contentWithoutNumber;
+                if (newLine !== line) {
+                    editor.setLine(i, newLine);
+                }
+            }
+        }
+    }
+
+    toggleLinePrefix(editor: Editor, prefix: string) {
+        const cursor = editor.getCursor();
+        const lineContent = editor.getLine(cursor.line);
+        let newLineContent = lineContent;
+        let hasMarker = false;
+
+        for (const marker of Object.values(SCRIPT_MARKERS)) {
+            if (lineContent.trim().startsWith(marker)) {
+                const matchIndex = lineContent.indexOf(marker);
+                const before = lineContent.substring(0, matchIndex);
+                const after = lineContent.substring(matchIndex + marker.length);
+                if (marker === prefix) {
+                    newLineContent = before + after;
+                    hasMarker = true;
+                } else {
+                    newLineContent = before + prefix + after;
+                    hasMarker = true;
+                }
+                break;
+            }
+        }
+        if (!hasMarker) newLineContent = prefix + lineContent;
+        editor.setLine(cursor.line, newLineContent);
+    }
+
+    insertText(editor: Editor, text: string, replaceLine = false) {
+        const cursor = editor.getCursor();
+        const lineContent = editor.getLine(cursor.line);
+        if (replaceLine) {
+            editor.setLine(cursor.line, text);
+        } else {
+            editor.setLine(cursor.line, text + lineContent);
+        }
+    }
+
+    clearLinePrefix(editor: Editor) {
+        const cursor = editor.getCursor();
+        const lineContent = editor.getLine(cursor.line);
+        let newLineContent = lineContent;
+        for (const marker of Object.values(SCRIPT_MARKERS)) {
+            if (lineContent.trim().startsWith(marker)) {
+                const matchIndex = lineContent.indexOf(marker);
+                const before = lineContent.substring(0, matchIndex);
+                const after = lineContent.substring(matchIndex + marker.length);
+                newLineContent = before + after;
+                editor.setLine(cursor.line, newLineContent);
+                return;
+            }
+        }
+    }
+}
+
+class ScripterSettingTab extends PluginSettingTab {
+    plugin: ScripterPlugin;
+
+    constructor(app: App, plugin: ScripterPlugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display(): void {
+        const { containerEl } = this;
+
+        containerEl.empty();
+
+        containerEl.createEl('h2', { text: 'Scripter for Obsidian - Usage Guide' });
+
+        // 1. Setup Instructions
+        new Setting(containerEl)
+            .setName('Getting Started')
+            .setDesc('How to activate screenplay formatting for a specific note.')
+            .setHeading();
+
+        const setupInfo = containerEl.createEl('div', { cls: 'setting-item-description' });
+        setupInfo.createEl('p', { text: 'To enable Scripter features (Live Preview & Print Formatting), adds the following to your note\'s frontmatter (Properties):' });
+        setupInfo.createEl('pre', { text: '---\ncssclasses: fountain\n---' });
+        setupInfo.createEl('p', { text: 'Or use "script" instead of "fountain".' });
+
+        containerEl.createEl('br');
+
+        // 2. Syntax Guide
+        new Setting(containerEl)
+            .setName('Syntax Reference')
+            .setDesc('Basic rules for formatting your screenplay.')
+            .setHeading();
+
+        const syntaxDiv = containerEl.createEl('div');
+
+        // Helper to format table rows
+        const createRow = (title: string, syntax: string, desc: string) => {
+            const p = syntaxDiv.createEl('p');
+            p.createEl('strong', { text: title + ': ' });
+            p.createEl('code', { text: syntax });
+            p.createSpan({ text: ' — ' + desc });
+        };
+
+        createRow('Scene Heading', 'INT. / EXT.', 'Automatic bold & uppercase.');
+        createRow('Character', '@NAME', 'Centered. "@" is hidden when not editing.');
+        createRow('Dialogue', 'Text below Character', 'Automatically indented.');
+        createRow('Parenthetical', '(emotion) / OS: / VO:', 'Centered & Italic.');
+        createRow('Transition', 'CUT TO: / FADE IN', 'Right aligned.');
+
+        containerEl.createEl('br');
+
+        // 3. Support
+        const supportDiv = containerEl.createEl('div', { attr: { style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 20px;' } });
+        supportDiv.createEl('p', { text: 'If you enjoy using Scripter, consider support its development!' });
+        const link = supportDiv.createEl('a', { href: 'https://buymeacoffee.com/ideo2004c' });
+        link.createEl('img', {
+            attr: {
+                src: 'https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png',
+                style: 'height: 40px;'
+            }
+        });
+    }
+}
