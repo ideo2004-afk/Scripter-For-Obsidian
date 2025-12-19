@@ -167,7 +167,10 @@ export default class ScripterPlugin extends Plugin {
                     previousType = explicitFormat.typeKey;
                 } else {
                     // Auto-Dialogue Detection
-                    if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
+                    // Only assume Dialogue if strictly following Character or Parenthetical.
+                    // Consecutive paragraphs of dialogue are rare/bad practice without (cont'd), 
+                    // so we default to Action to prevent misclassifying scene descriptions.
+                    if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL') {
                         p.addClass(CSS_CLASSES.DIALOGUE);
                         previousType = 'DIALOGUE';
                     } else {
