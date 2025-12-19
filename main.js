@@ -138,7 +138,7 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
           this.applyFormatToElement(p, explicitFormat);
           previousType = explicitFormat.typeKey;
         } else {
-          if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
+          if (previousType === "CHARACTER" || previousType === "PARENTHETICAL") {
             p.addClass(CSS_CLASSES.DIALOGUE);
             previousType = "DIALOGUE";
           } else {
