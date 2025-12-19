@@ -99,8 +99,8 @@ li.script-scene::marker {
     /* Character: Keep centered but strict spacing */
     .script-character {
         text-align: center !important;
+        /* Enforce margins to ensure centering is visible and distinct from dialogue */
         margin-left: 20% !important;
-        /* Match reading view or slightly wider */
         margin-right: 20% !important;
         margin-bottom: 0px !important;
         /* Critical for connection to dialogue */
@@ -113,9 +113,9 @@ li.script-scene::marker {
     .script-dialogue {
         text-align: left !important;
         /* Standard screenplay formal is left-aligned in a centered column */
-        margin-left: 25% !important;
+        margin-left: 10% !important;
         /* Narrower than 10% for authentic look */
-        margin-right: 25% !important;
+        margin-right: 10% !important;
         margin-top: 0px !important;
         margin-bottom: 1em !important;
         font-weight: normal !important;
@@ -124,9 +124,9 @@ li.script-scene::marker {
     }
 
     .script-parenthetical {
-        margin-left: 30% !important;
+        margin-left: 10% !important;
         /* Narrower than dialogue */
-        margin-right: 30% !important;
+        margin-right: 10% !important;
         margin-top: 0px !important;
         margin-bottom: 0px !important;
         /* text-align: left !important; */
