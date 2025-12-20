@@ -7,10 +7,10 @@ Scripter for Obsidian is a plugin designed to bring industry-standard screenplay
 
 ## ✨ Philosophy (設計哲學)
 
-- **Live Preview (所見即所得)**: Formatting is applied in real-time as you type in the editor.
-- **Minimal Syntax**: Only **ONE** special character (`@`) is required.
-- **Auto-Formatting**: Transitions, dialogues, and scene headings are detected automatically.
-- **Zero Interference**: Formatting only applies to notes with `cssclasses: fountain` or `script`.
+- **Live Preview (所見即所得)**: Formatting is applied in real-time as you type.
+- **Minimal Syntax (極簡語法)**: Supports `@` markers, but also recognizes characters based on standard screenwriting habits (ALL CAPS, Chinese names, colons).
+- **Universal Detection (萬用識別)**: Smart detection for Chinese, English, and Mixed character names.
+- **Zero Interference**: Only applies to notes with `cssclasses: fountain` or `script`.
 
 ---
 
@@ -24,13 +24,18 @@ Start a line with standard screenplay prefixes. They will automatically bold.
     INT. HOUSE - NIGHT
     ```
 
-### 2. Characters (角色)
-Prefix character names with `@`. They will be centered and capitalized. The `@` symbol automatically hides when you aren't editing the line.
-*   **Syntax**: `@NAME`
-*   **Example**:
-    ```text
-    @BATMAN
-    ```
+### 2. Characters (角色識別)
+Scripter is highly flexible and supports three ways to identify characters:
+
+*   **A. Explicit Marker (顯式標記)**: Prefix with `@`.
+    *   `@JORDAN`, `@翔翔`
+*   **B. Colon Habit (中文/冒號習慣)**: Character name followed by a colon. Supports **Same-line Dialogue splitting**.
+    *   `翔翔：肚子餓了。` -> Automatically splits into centered Name and Dialogue below.
+    *   `ALEX: Hello.` -> Works for English too.
+*   **C. Implicit Habits (隱含習慣)**: 
+    *   **ALL CAPS**: `JORDAN`, `GUARD 1` (1-30 chars).
+    *   **Pure Chinese**: `翔翔`, `男人` (1-10 chars, no punctuation).
+    *   **Mixed Names**: `男人 ALEX` (Up to 30 chars).
 
 ### 3. Dialogue (對白)
 **Automatic.** Any line immediately following a Character, Parenthetical, or another Dialogue line is treated as Dialogue (indented).
@@ -66,8 +71,9 @@ Standard uppercase transitions ending in `TO:` or start/end keywords. They will 
 
 ### 🎬 Live Preview Editing
 The editor now behaves like a dedicated screenwriting app:
-- **Smart Indentation**: Dialogue is automatically indented.
+- **Smart Indentation**: Dialogue and parentheticals are automatically positioned.
 - **Auto-Hiding Markers**: Technical symbols like `@` disappear to keep your view clean.
+- **Combined Detection**: Support for English (ALL CAPS), Chinese, and Mixed character names with or without colons.
 - **Header Centering**: `# Header 1` and `## Header 2` are automatically centered for professional script layout.
 
 ### 🔢 Scene Renumbering (自動場次編號)
