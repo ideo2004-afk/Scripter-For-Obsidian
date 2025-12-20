@@ -90,7 +90,7 @@ export default class ScripterPlugin extends Plugin {
 
                     if (classesArray.includes('fountain') || classesArray.includes('script')) {
                         if (!checking) {
-                            this.exportCurrentFileToDocx(view);
+                            this.exportFileToDocx(view.file!);
                         }
                         return true;
                     }
@@ -235,7 +235,7 @@ export default class ScripterPlugin extends Plugin {
 
                     subMenu.addItem((subItem: MenuItem) => {
                         subItem.setTitle("Export to .docx").setIcon("file-output")
-                            .onClick(() => this.exportCurrentFileToDocx(view));
+                            .onClick(() => this.exportFileToDocx(view.file!));
                     });
                 });
             })
@@ -244,6 +244,23 @@ export default class ScripterPlugin extends Plugin {
         // 6. File Explorer Context Menu
         this.registerEvent(
             this.app.workspace.on("file-menu", (menu: Menu, file: TFile | TFolder) => {
+                if (file instanceof TFile && file.extension === 'md') {
+                    const cache = this.app.metadataCache.getFileCache(file);
+                    const cssClasses = cache?.frontmatter?.cssclasses;
+                    const classesArray = Array.isArray(cssClasses) ? cssClasses : (typeof cssClasses === 'string' ? [cssClasses] : []);
+
+                    if (classesArray.includes('fountain') || classesArray.includes('script')) {
+                        menu.addItem((item) => {
+                            item
+                                .setTitle("Export to .docx")
+                                .setIcon("file-output")
+                                .onClick(async () => {
+                                    await this.exportFileToDocx(file);
+                                });
+                        });
+                    }
+                }
+
                 menu.addItem((item) => {
                     item
                         .setTitle("New script")
@@ -261,6 +278,9 @@ export default class ScripterPlugin extends Plugin {
             })
         );
 
+        this.registerEvent(
+            this.app.workspace.on('active-leaf-change', () => this.refreshSceneView())
+        );
         this.registerEvent(
             this.app.metadataCache.on('changed', () => this.refreshSceneView())
         );
@@ -540,17 +560,14 @@ export default class ScripterPlugin extends Plugin {
         }
     }
 
-    async exportCurrentFileToDocx(view: MarkdownView) {
-        const file = view.file;
-        if (!file) return;
-
-        const content = view.editor.getValue();
-        const baseName = file.basename;
-        const folderPath = file.parent?.path || "/";
-        const fileName = `${baseName}.docx`;
-        const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
-
+    async exportFileToDocx(file: TFile) {
         try {
+            const content = await this.app.vault.read(file);
+            const baseName = file.basename;
+            const folderPath = file.parent?.path || "/";
+            const fileName = `${baseName}.docx`;
+            const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
+
             new Notice(`Exporting ${fileName}...`);
             const buffer = await DocxExporter.exportToDocx(content, baseName);
 
@@ -559,7 +576,7 @@ export default class ScripterPlugin extends Plugin {
 
             // Save the file
             await this.app.vault.adapter.writeBinary(filePath, arrayBuffer);
-            new Notice(`Successfully exported to ${fileName}`);
+            new Notice(`Successfully exported to ${baseName}.docx`);
         } catch (error) {
             console.error("Export to DOCX failed:", error);
             new Notice(`Failed to export to DOCX: ${error.message}`);

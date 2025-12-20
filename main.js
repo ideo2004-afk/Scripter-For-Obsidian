@@ -19289,7 +19289,7 @@ var ScripterPlugin = class extends import_obsidian2.Plugin {
           const classesArray = Array.isArray(cssClasses) ? cssClasses : typeof cssClasses === "string" ? [cssClasses] : [];
           if (classesArray.includes("fountain") || classesArray.includes("script")) {
             if (!checking) {
-              this.exportCurrentFileToDocx(view);
+              this.exportFileToDocx(view.file);
             }
             return true;
           }
@@ -19401,26 +19401,42 @@ var ScripterPlugin = class extends import_obsidian2.Plugin {
           });
           subMenu.addSeparator();
           subMenu.addItem((subItem) => {
-            subItem.setTitle("Export to .docx").setIcon("file-output").onClick(() => this.exportCurrentFileToDocx(view));
+            subItem.setTitle("Export to .docx").setIcon("file-output").onClick(() => this.exportFileToDocx(view.file));
           });
         });
       })
     );
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
+        var _a;
+        if (file instanceof import_obsidian2.TFile && file.extension === "md") {
+          const cache = this.app.metadataCache.getFileCache(file);
+          const cssClasses = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.cssclasses;
+          const classesArray = Array.isArray(cssClasses) ? cssClasses : typeof cssClasses === "string" ? [cssClasses] : [];
+          if (classesArray.includes("fountain") || classesArray.includes("script")) {
+            menu.addItem((item) => {
+              item.setTitle("Export to .docx").setIcon("file-output").onClick(async () => {
+                await this.exportFileToDocx(file);
+              });
+            });
+          }
+        }
         menu.addItem((item) => {
           item.setTitle("New script").setIcon("scroll-text").onClick(async () => {
-            var _a;
+            var _a2;
             let folderPath = "/";
             if (file instanceof import_obsidian2.TFolder) {
               folderPath = file.path;
             } else if (file instanceof import_obsidian2.TFile) {
-              folderPath = ((_a = file.parent) == null ? void 0 : _a.path) || "/";
+              folderPath = ((_a2 = file.parent) == null ? void 0 : _a2.path) || "/";
             }
             await this.createNewScript(folderPath);
           });
         });
       })
+    );
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => this.refreshSceneView())
     );
     this.registerEvent(
       this.app.metadataCache.on("changed", () => this.refreshSceneView())
@@ -19657,22 +19673,19 @@ var ScripterPlugin = class extends import_obsidian2.Plugin {
       }
     }
   }
-  async exportCurrentFileToDocx(view) {
+  async exportFileToDocx(file) {
     var _a;
-    const file = view.file;
-    if (!file)
-      return;
-    const content = view.editor.getValue();
-    const baseName = file.basename;
-    const folderPath = ((_a = file.parent) == null ? void 0 : _a.path) || "/";
-    const fileName = `${baseName}.docx`;
-    const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
     try {
+      const content = await this.app.vault.read(file);
+      const baseName = file.basename;
+      const folderPath = ((_a = file.parent) == null ? void 0 : _a.path) || "/";
+      const fileName = `${baseName}.docx`;
+      const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
       new import_obsidian2.Notice(`Exporting ${fileName}...`);
       const buffer2 = await DocxExporter.exportToDocx(content, baseName);
       const arrayBuffer = buffer2.buffer.slice(buffer2.byteOffset, buffer2.byteOffset + buffer2.byteLength);
       await this.app.vault.adapter.writeBinary(filePath, arrayBuffer);
-      new import_obsidian2.Notice(`Successfully exported to ${fileName}`);
+      new import_obsidian2.Notice(`Successfully exported to ${baseName}.docx`);
     } catch (error) {
       console.error("Export to DOCX failed:", error);
       new import_obsidian2.Notice(`Failed to export to DOCX: ${error.message}`);
