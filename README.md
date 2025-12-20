@@ -4,7 +4,14 @@
 **讓 Obsidian 變身為輕量、免費且專業的美式劇本寫作軟體。**
 
 Standard Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, and professional DOCX export.
+
 It now features a powerful **Live Preview** mode, meaning you see the correct formatting while you write, without needing to switch modes.
+
+### 🛠️ Key Features (主要功能)
+- **Live Preview**: Real-time screenplay formatting while you type.
+- **Scene Mode View**: Dedicated sidebar outline for H1-H3 and Scene Headings. Find the list icon in the **right side dock** (next to the Outline).
+- **Auto Scene Renumbering**: Keep your scene numbers consistent automatically.
+- **Professional DOCX Export**: Generate industry-standard screenplay documents (.docx) with one click.
 
 ## ✨ Philosophy (設計哲學)
 

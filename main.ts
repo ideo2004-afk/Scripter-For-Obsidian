@@ -1,7 +1,8 @@
-import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice } from 'obsidian';
+import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice, WorkspaceLeaf } from 'obsidian';
 import { DocxExporter } from './docxExporter';
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import { SceneView, SCENE_VIEW_TYPE } from './sceneView';
 
 // Script Symbols
 const SCRIPT_MARKERS = {
@@ -49,7 +50,13 @@ interface ExtendedMenuItem extends MenuItem {
 
 export default class ScripterPlugin extends Plugin {
     async onload() {
-        // 1. Settings / Help Tab
+        // 1. Register Scene View
+        this.registerView(
+            SCENE_VIEW_TYPE,
+            (leaf) => new SceneView(leaf)
+        );
+
+        // 2. Settings / Help Tab
         this.addSettingTab(new ScripterSettingTab(this.app, this));
 
         // 2. Command: Renumber Scenes
@@ -90,6 +97,12 @@ export default class ScripterPlugin extends Plugin {
                 }
                 return false;
             }
+        });
+
+        this.addCommand({
+            id: 'show-scene-mode',
+            name: 'Show scene mode',
+            callback: () => this.activateView()
         });
 
         // 3. Post Processor (Reading Mode & PDF)
@@ -247,6 +260,54 @@ export default class ScripterPlugin extends Plugin {
                 });
             })
         );
+
+        this.registerEvent(
+            this.app.metadataCache.on('changed', () => this.refreshSceneView())
+        );
+
+        // 7. Auto-initialize Scene View in Sidebar
+        this.app.workspace.onLayoutReady(() => {
+            this.initSceneView();
+        });
+    }
+
+    async initSceneView() {
+        if (this.app.workspace.getLeavesOfType(SCENE_VIEW_TYPE).length > 0) {
+            return;
+        }
+        await this.app.workspace.getRightLeaf(false).setViewState({
+            type: SCENE_VIEW_TYPE,
+            active: false,
+        });
+    }
+
+    async activateView() {
+        const { workspace } = this.app;
+
+        let leaf: WorkspaceLeaf | null = null;
+        const leaves = workspace.getLeavesOfType(SCENE_VIEW_TYPE);
+
+        if (leaves.length > 0) {
+            leaf = leaves[0];
+        } else {
+            leaf = workspace.getRightLeaf(false);
+            if (leaf) {
+                await leaf.setViewState({ type: SCENE_VIEW_TYPE, active: true });
+            }
+        }
+
+        if (leaf) {
+            workspace.revealLeaf(leaf);
+        }
+    }
+
+    refreshSceneView() {
+        const leaves = this.app.workspace.getLeavesOfType(SCENE_VIEW_TYPE);
+        leaves.forEach(leaf => {
+            if (leaf.view instanceof SceneView) {
+                leaf.view.updateView();
+            }
+        });
     }
 
     onunload() {
@@ -571,7 +632,8 @@ class ScripterSettingTab extends PluginSettingTab {
             .setHeading();
 
         const featuresDiv = containerEl.createDiv();
-        featuresDiv.createEl('li', { text: 'New Script Button: Look for the quill icon in the left ribbon to quickly create a new screenplay.' });
+        featuresDiv.createEl('li', { text: 'New Script Button: Click the quill/scroll icon in the left ribbon to create a new screenplay.' });
+        featuresDiv.createEl('li', { text: 'Scene Mode: Find the list icon in the right sidebar (next to the Outline) to view your scene structure.' });
         featuresDiv.createEl('li', { text: 'Renumber Scenes: Right-click in the editor to re-order your scene numbers automatically.' });
         featuresDiv.createEl('li', { text: 'Professional Export: Right-click and choose "Export to .docx" to generate a Hollywood-standard Word document.' });
 
