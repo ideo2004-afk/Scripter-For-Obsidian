@@ -56,148 +56,92 @@ var LP_CLASSES = {
   SYMBOL: "lp-marker-symbol"
 };
 var ScripterPlugin = class extends import_obsidian.Plugin {
-  onload() {
+  async onload() {
     this.addSettingTab(new ScripterSettingTab(this.app, this));
     this.addCommand({
       id: "renumber-scenes",
       name: "Renumber scenes",
       editorCallback: (editor) => this.renumberScenes(editor)
     });
+    this.addRibbonIcon("scroll-text", "New script", () => {
+      this.createNewScript();
+    });
+    this.addCommand({
+      id: "create-new-script",
+      name: "Create new script",
+      callback: () => this.createNewScript()
+    });
     this.registerMarkdownPostProcessor((element, context) => {
-      var _a, _b, _c;
       const frontmatter = context.frontmatter;
       const cssClasses = frontmatter == null ? void 0 : frontmatter.cssclasses;
       const classesArray = Array.isArray(cssClasses) ? cssClasses : typeof cssClasses === "string" ? [cssClasses] : [];
       if (!classesArray.includes("fountain") && !classesArray.includes("script")) {
         return;
       }
-      const lines = Array.from(element.querySelectorAll("p, div, blockquote, li"));
-      let previousType = null;
-      for (let i = 0; i < lines.length; i++) {
-        let p = lines[i];
-        let splitNode = null;
-        let splitOffset = -1;
-        const findSplit = (nodes) => {
-          for (let j = 0; j < nodes.length; j++) {
-            const node = nodes[j];
-            if (node.nodeName === "BR") {
-              splitNode = node;
-              return true;
-            }
-            if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-              const nl = node.textContent.indexOf("\n");
-              if (nl !== -1) {
-                splitNode = node;
-                splitOffset = nl;
-                return true;
-              }
-            }
-            if (node.hasChildNodes() && node.nodeName !== "P" && node.nodeName !== "DIV") {
-              if (findSplit(node.childNodes))
-                return true;
-            }
-          }
-          return false;
-        };
-        if (findSplit(p.childNodes)) {
-          let textBefore = "";
-          const collectText = (root) => {
-            for (let k = 0; k < root.childNodes.length; k++) {
-              const node = root.childNodes[k];
-              if (node === splitNode) {
-                if (splitOffset !== -1 && node.textContent) {
-                  textBefore += node.textContent.substring(0, splitOffset);
-                }
-                return true;
-              }
-              if (node.contains(splitNode)) {
-                if (collectText(node))
-                  return true;
-              } else {
-                textBefore += node.textContent || "";
-              }
-            }
-            return false;
-          };
-          collectText(p);
-          textBefore = textBefore.trim();
-          const firstFormat = this.detectExplicitFormat(textBefore);
-          if ((firstFormat == null ? void 0 : firstFormat.typeKey) === "CHARACTER") {
-            const newP = p.cloneNode(true);
-            newP.className = "";
-            newP.addClass(CSS_CLASSES.DIALOGUE);
-            const range = document.createRange();
-            if (splitOffset !== -1) {
-              range.setStart(splitNode, splitOffset + 1);
-            } else {
-              range.setStartAfter(splitNode);
-            }
-            range.setEndAfter(p.lastChild);
-            const dialogueFragment = range.extractContents();
-            const dialogueP = createEl("p");
-            dialogueP.addClass(CSS_CLASSES.DIALOGUE);
-            dialogueP.appendChild(dialogueFragment);
-            if (splitOffset !== -1) {
-              if (splitNode.textContent) {
-                splitNode.textContent = splitNode.textContent.substring(0, splitOffset);
-              }
-            } else {
-              if (splitNode && splitNode.parentNode) {
-                splitNode.parentNode.removeChild(splitNode);
-              }
-            }
-            if ((_a = p.textContent) == null ? void 0 : _a.trim()) {
-              this.applyFormatToElement(p, firstFormat);
-              previousType = "CHARACTER";
-              if ((_b = dialogueP.textContent) == null ? void 0 : _b.trim()) {
-                p.insertAdjacentElement("afterend", dialogueP);
-                previousType = "DIALOGUE";
-              }
-              continue;
-            }
-          }
-        }
-        let text = ((_c = p.textContent) == null ? void 0 : _c.trim()) || "";
-        if (!text) {
-          previousType = null;
-          continue;
-        }
-        const explicitFormat = this.detectExplicitFormat(text);
-        if (explicitFormat) {
-          const colonMatch = text.match(CHARACTER_COLON_REGEX);
-          if (colonMatch && colonMatch[2].trim()) {
-            p.textContent = colonMatch[1] + (text.includes("\uFF1A") ? "\uFF1A" : ":");
-            this.applyFormatToElement(p, explicitFormat);
-            const dialogueP = createEl("p");
-            dialogueP.addClass(CSS_CLASSES.DIALOGUE);
-            dialogueP.textContent = colonMatch[2];
-            p.insertAdjacentElement("afterend", dialogueP);
-            previousType = "DIALOGUE";
-            continue;
-          }
-          this.applyFormatToElement(p, explicitFormat);
-          previousType = explicitFormat.typeKey;
+      const paragraphs = element.querySelectorAll("p");
+      let globalPreviousType = "ACTION";
+      paragraphs.forEach((p) => {
+        const sectionInfo = context.getSectionInfo(p);
+        let sourceLines = [];
+        if (sectionInfo) {
+          const { text: fullSource, lineStart, lineEnd } = sectionInfo;
+          sourceLines = fullSource.split("\n").slice(lineStart, lineEnd + 1);
         } else {
-          if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
-            p.addClass(CSS_CLASSES.DIALOGUE);
-            previousType = "DIALOGUE";
+          const text = p.textContent || "";
+          sourceLines = text.split("\n");
+        }
+        p.empty();
+        sourceLines.forEach((lineText) => {
+          const trimmedLine = lineText.trim();
+          if (!trimmedLine) {
+            globalPreviousType = "ACTION";
+            return;
+          }
+          const format = this.detectExplicitFormat(trimmedLine);
+          const container = p.createDiv();
+          if (format) {
+            container.addClass(format.cssClass);
+            let displayText = trimmedLine;
+            if (format.removePrefix) {
+              displayText = trimmedLine.substring(format.markerLength).trim();
+            }
+            const colonMatch = displayText.match(CHARACTER_COLON_REGEX);
+            if (format.typeKey === "CHARACTER" && colonMatch) {
+              const [_, charName, dialogueText] = colonMatch;
+              container.setText(charName);
+              if (dialogueText.trim()) {
+                const diagDiv = p.createDiv(CSS_CLASSES.DIALOGUE);
+                diagDiv.setText(dialogueText.trim());
+                globalPreviousType = "DIALOGUE";
+              } else {
+                globalPreviousType = "CHARACTER";
+              }
+            } else {
+              container.setText(displayText);
+              globalPreviousType = format.typeKey;
+            }
+          } else if (globalPreviousType === "CHARACTER" || globalPreviousType === "PARENTHETICAL" || globalPreviousType === "DIALOGUE") {
+            container.addClass(CSS_CLASSES.DIALOGUE);
+            container.setText(trimmedLine);
+            globalPreviousType = "DIALOGUE";
           } else {
-            p.addClass(CSS_CLASSES.ACTION);
-            previousType = "ACTION";
+            container.addClass(CSS_CLASSES.ACTION);
+            container.setText(trimmedLine);
+            globalPreviousType = "ACTION";
           }
-        }
-        if (previousType === "DIALOGUE" || previousType === "ACTION") {
-          const html = p.innerHTML;
-          const replaced = html.replace(/(\(.*?\)|（.*?）)/g, '<span class="script-parenthetical-inline">$1</span>');
-          if (replaced !== html) {
-            p.innerHTML = replaced;
-          }
-        }
-      }
+        });
+      });
     });
     this.registerEditorExtension(this.livePreviewExtension());
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
+        var _a;
+        const fileCache = view.file ? this.app.metadataCache.getFileCache(view.file) : null;
+        const cssClasses = (_a = fileCache == null ? void 0 : fileCache.frontmatter) == null ? void 0 : _a.cssclasses;
+        const classesArray = Array.isArray(cssClasses) ? cssClasses : typeof cssClasses === "string" ? [cssClasses] : [];
+        if (!classesArray.includes("fountain") && !classesArray.includes("script")) {
+          return;
+        }
         menu.addItem((item) => {
           item.setTitle("Scripter").setIcon("film");
           const subMenu = item.setSubmenu();
@@ -228,6 +172,22 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
         });
       })
     );
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        menu.addItem((item) => {
+          item.setTitle("New script").setIcon("scroll-text").onClick(async () => {
+            var _a;
+            let folderPath = "/";
+            if (file instanceof import_obsidian.TFolder) {
+              folderPath = file.path;
+            } else if (file instanceof import_obsidian.TFile) {
+              folderPath = ((_a = file.parent) == null ? void 0 : _a.path) || "/";
+            }
+            await this.createNewScript(folderPath);
+          });
+        });
+      })
+    );
   }
   onunload() {
   }
@@ -246,6 +206,9 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
       }
       buildDecorations(view) {
         const builder = new import_state.RangeSetBuilder();
+        const isScript = view.dom.closest(".fountain") || view.dom.closest(".script");
+        if (!isScript)
+          return builder.finish();
         const selection = view.state.selection;
         let previousType = null;
         const hiddenDeco = import_view.Decoration.mark({ class: LP_CLASSES.SYMBOL });
@@ -351,23 +314,6 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
     }
     return null;
   }
-  applyFormatToElement(p, format) {
-    p.addClass(format.cssClass);
-    if (format.removePrefix && format.markerLength > 0) {
-      this.stripMarkerFromElement(p, format.markerLength);
-    }
-  }
-  stripMarkerFromElement(element, length) {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    const firstTextNode = walker.nextNode();
-    if (firstTextNode) {
-      let text = firstTextNode.textContent || "";
-      const removeCount = length;
-      if (text.length >= removeCount) {
-        firstTextNode.textContent = text.substring(removeCount);
-      }
-    }
-  }
   renumberScenes(editor) {
     const lineCount = editor.lineCount();
     let sceneCounter = 0;
@@ -437,6 +383,28 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
         return;
       }
     }
+  }
+  async createNewScript(folderPath) {
+    var _a;
+    let targetFolder = folderPath;
+    if (!targetFolder) {
+      const activeFile = this.app.workspace.getActiveFile();
+      targetFolder = activeFile ? ((_a = activeFile.parent) == null ? void 0 : _a.path) || "/" : "/";
+    }
+    const baseName = "Untitled Script";
+    let fileName = `${baseName}.md`;
+    let filePath = targetFolder === "/" ? fileName : `${targetFolder}/${fileName}`;
+    let counter = 1;
+    while (await this.app.vault.adapter.exists(filePath)) {
+      fileName = `${baseName} ${counter}.md`;
+      filePath = targetFolder === "/" ? fileName : `${targetFolder}/${fileName}`;
+      counter++;
+    }
+    const frontmatterContent = "---\ncssclasses: fountain\n---\n\n";
+    const newFile = await this.app.vault.create(filePath, frontmatterContent);
+    const leaf = this.app.workspace.getLeaf(false);
+    await leaf.openFile(newFile);
+    this.app.workspace.trigger("rename", newFile, newFile.path);
   }
 };
 var ScripterSettingTab = class extends import_obsidian.PluginSettingTab {

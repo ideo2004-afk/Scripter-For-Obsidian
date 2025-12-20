@@ -1,6 +1,6 @@
 {
     "name": "scripter-for-obsidian",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "Applies standard screenplay formatting (Scene, Character, Dialogue, etc.) via the context menu.",
     "main": "main.js",
     "scripts": {

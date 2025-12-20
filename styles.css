@@ -1,200 +1,152 @@
 /* Screenplay Formatting Styles */
 
-.script-scene,
-.script-character,
-.script-dialogue,
-.script-parenthetical,
-.script-transition,
-.script-action {
-    color: var(--text-normal) !important;
-}
+/* Scoped styles for notes with 'fountain' or 'script' class */
+.fountain,
+.script,
+.markdown-preview-view.fountain,
+.markdown-preview-view.script,
+.markdown-source-view.fountain,
+.markdown-source-view.script {
 
-/* Scene Heading: . */
-.script-scene {
-    font-weight: bold !important;
-    text-transform: uppercase;
-    text-align: left !important;
-    margin-top: 3em !important;
-    margin-bottom: 1em !important;
-    border-bottom: none !important;
-    padding-left: 0 !important;
-
-}
-
-/* 針對 Obsidian 列表的特定修正 */
-li.script-scene {
-    margin-top: 3em !important;
-}
-
-li.script-scene::marker {
-    font-weight: bold !important;
-    /* 嘗試讓編號也變粗 */
-}
-
-/* Character: @ */
-.script-character {
-    text-transform: uppercase;
-    text-align: center !important;
-    padding-left: 0 !important;
-    margin-left: 9em !important;
-    margin-right: 9em !important;
-    margin-top: 1em !important;
-    margin-bottom: 0px !important;
-    padding-bottom: 0px !important;
-    display: block !important;
-}
-
-/* Dialogue: : or ： */
-.script-dialogue {
-    /* text-align: justify !important; */
-    text-align: center !important;
-    margin-left: 7em !important;
-    margin-right: 7em !important;
-    margin-top: 0px !important;
-    margin-bottom: 1em !important;
-    display: block !important;
-    white-space: pre-wrap !important;
-}
-
-/* Parenthetical: ( */
-.script-parenthetical {
-    margin-left: 7em !important;
-    margin-right: 7em !important;
-    margin-bottom: 0px !important;
-    font-style: italic !important;
-    display: block !important;
-    color: var(--text-muted) !important;
-}
-
-/* Transition: CUT TO: etc. */
-.script-transition {
-    text-align: right !important;
-    text-transform: uppercase;
-    margin-top: 1.5em !important;
-    margin-bottom: 1em !important;
-    display: block !important;
-    margin-right: 1em !important;
-    color: var(--text-normal) !important;
-}
-
-/* PDF Export / Print Settings */
-@media print {
-
-    /* Ensure Scene Headings are bold and clean */
-    .script-scene {
-        margin-top: 1.5em !important;
-        margin-bottom: 0.5em !important;
-    }
-
-    /* Character: Keep centered but strict spacing */
-    /* Character: Keep centered but strict spacing */
+    .script-scene,
     .script-character,
-    p.script-character {
-        text-align: center !important;
-        margin-left: 9em !important;
-        margin-right: 9em !important;
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-        page-break-after: avoid;
+    .script-dialogue,
+    .script-parenthetical,
+    .script-transition,
+    .script-action {
+        color: var(--text-normal) !important;
     }
 
-    /* Dialogue: Narrower column */
+    /* Scene Heading: . */
+    .script-scene {
+        font-weight: bold !important;
+        text-transform: uppercase;
+        text-align: left !important;
+        margin-top: 3em !important;
+        margin-bottom: 1em !important;
+        border-bottom: none !important;
+        padding-left: 0 !important;
+    }
+
+    /* Character: @ */
+    .script-character {
+        text-transform: uppercase;
+        text-align: center !important;
+        margin-top: 1em !important;
+        margin-bottom: 0px !important;
+        display: block !important;
+    }
+
+    /* Dialogue: : or ： */
     .script-dialogue {
         text-align: center !important;
         margin-left: 7em !important;
         margin-right: 7em !important;
         margin-top: 0px !important;
-        margin-bottom: 1em !important;
-        font-weight: normal !important;
+        margin-bottom: 0px !important;
+        /* Keep it tight */
+        display: block !important;
         white-space: pre-wrap !important;
     }
 
+    /* Parenthetical: ( */
     .script-parenthetical {
         text-align: center !important;
         margin-left: 7em !important;
         margin-right: 7em !important;
-        margin-top: 0px !important;
         margin-bottom: 0px !important;
-        page-break-before: avoid;
+        font-style: italic !important;
+        display: block !important;
+        color: var(--text-muted) !important;
     }
 
+    /* Transition: CUT TO: etc. */
     .script-transition {
         text-align: right !important;
-        margin-right: 1.5em !important;
+        text-transform: uppercase;
+        margin-top: 1.5em !important;
+        margin-bottom: 1em !important;
+        display: block !important;
+        margin-right: 1em !important;
+    }
+
+    /* PDF Export / Print Settings */
+    @media print {
+        .script-scene {
+            margin-top: 1.5em !important;
+            margin-bottom: 0.5em !important;
+        }
+
+        .script-character {
+            text-align: center !important;
+            margin-left: 9em !important;
+            margin-right: 9em !important;
+            margin-bottom: 0px !important;
+            page-break-after: avoid;
+        }
+
+        .script-dialogue {
+            text-align: center !important;
+            margin-left: 7em !important;
+            margin-right: 7em !important;
+            margin-bottom: 1em !important;
+            white-space: pre-wrap !important;
+        }
+
+        .script-parenthetical {
+            text-align: center !important;
+            margin-left: 7em !important;
+            margin-right: 7em !important;
+            margin-top: 0px !important;
+            page-break-before: avoid;
+        }
+
+        .script-transition {
+            text-align: right !important;
+            margin-right: 1.5em !important;
+        }
+    }
+
+    /* LP Classes (Live Preview / Editing Mode) */
+    .lp-scene {
+        font-weight: bold !important;
+        text-transform: uppercase;
+    }
+
+    .lp-character {
+        text-transform: uppercase;
+        text-align: center !important;
+    }
+
+    .lp-dialogue {
+        padding-left: 7em !important;
+        padding-right: 7em !important;
+        text-align: center !important;
+    }
+
+    .lp-parenthetical {
+        font-style: italic !important;
+        text-align: center !important;
+        color: var(--text-muted) !important;
+        padding-left: 7em !important;
+        padding-right: 7em !important;
+    }
+
+    .lp-transition {
+        text-align: right !important;
+        text-transform: uppercase;
+    }
+
+    .lp-marker-symbol {
+        color: transparent !important;
+        font-size: 1px !important;
+        letter-spacing: -1ch;
     }
 }
 
-/* 針對 Reading View 的修正 */
-.markdown-preview-view p.script-character {
-    background-color: transparent !important;
-    /* 防止被 highlight 干擾 */
-}
-
-/* ==========================================================================
-   Live Preview (Editing Mode) Styles
-   Prefix: .lp- (Live Preview)
-   Purpose: Separate styling for the editor to ensure stability and editability.
-   ========================================================================== */
-
-.lp-scene {
-    font-weight: bold !important;
-    text-transform: uppercase;
-    color: var(--text-normal) !important;
-    /* 編輯模式通常不需要過大的上下 margin，以免游標跳動 */
-}
-
-.lp-character {
-    /* font-weight: bold !important; */
-    text-transform: uppercase;
-    text-align: center !important;
-    color: var(--text-normal) !important;
-    /* 不使用大 margin，避免編輯困難，改用 padding 或維持原狀 */
-}
-
-.lp-dialogue {
-    /* 編輯時保持靠左或些微縮排即可 -> 改為 10% 以接近閱讀模式 */
-    padding-left: 7em !important;
-    padding-right: 7em !important;
-    text-align: center !important;
-    color: var(--text-normal) !important;
-}
-
-.lp-parenthetical {
-    font-style: italic !important;
-    color: var(--text-muted) !important;
-    padding-left: 7em !important;
-    padding-right: 7em !important;
-    text-align: center !important;
-}
-
-.lp-transition {
-    text-align: right !important;
-    text-transform: uppercase;
-    color: var(--text-normal) !important;
-}
-
-/* 讓編輯模式的符號（如 @）在非編輯狀態下隱藏 */
-.lp-marker-symbol {
-    color: transparent !important;
-    font-size: 1px !important;
-    /* 不完全為 0 以避免高度塌陷問題 */
-    letter-spacing: -1ch;
-    /* 嘗試縮減寬度 */
-}
-
-/* ==========================================================================
-   Header Styling (H1 Centering)
-   Only applies to fountain/script notes
-   ========================================================================== */
-
-/* Reading Mode */
+/* Header Styling (H1 Centering) */
 .markdown-preview-view.fountain h1,
-.markdown-preview-view.script h1 {
-    text-align: center !important;
-}
-
-/* Live Preview (Editing Mode) */
-/* 使用 .HyperMD-header-1 確保選中整行 */
+.markdown-preview-view.script h1,
 .markdown-source-view.fountain .HyperMD-header-1,
 .markdown-source-view.script .HyperMD-header-1 {
     text-align: center !important;

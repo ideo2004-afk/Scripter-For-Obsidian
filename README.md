@@ -76,13 +76,21 @@ The editor now behaves like a dedicated screenwriting app:
 - **Combined Detection**: Support for English (ALL CAPS), Chinese, and Mixed character names with or without colons.
 - **Header Centering**: `# Header 1` and `## Header 2` are automatically centered for professional script layout.
 
+### 🆕 Fast Script Creation (快速建立劇本)
+Easily create new script files pre-configured with the correct metadata (`cssclasses: fountain`).
+- **Ribbon Icon**: Click the "Scroll Text" icon on the left sidebar.
+- **Context Menu**: Right-click on any folder and select **New script**.
+- **Command Palette**: Search for `Create new script`.
+
+### 📄 Intelligent PDF Export (智慧 PDF 輸出)
+The plugin includes a dedicated print engine (`@media print`) and a **Hybrid Parsing Strategy** that ensures your PDF exports look perfect even if Obsidian collapses line breaks.
+- **Source-Line Precision**: In Reading Mode, formatting is based on the exact source lines.
+- **Smart Fallback**: During PDF export, if source-line mapping is lost, the plugin intelligently parses the text content to preserve character and dialogue formatting.
+
 ### 🔢 Scene Renumbering (自動場次編號)
 Command: `Scripter: Renumber Scenes`
 - Scans your entire document.
 - Automatically adds or updates sequential numbers to all Scene Headings (e.g., `1. INT. ...`).
-
-### 📄 Intelligent PDF Export (智慧 PDF 輸出)
-The plugin includes a dedicated print engine (`@media print`) that ensures your PDF exports look like standard industry scripts with correct margins (A4/Letter optimized).
 
 ---
 

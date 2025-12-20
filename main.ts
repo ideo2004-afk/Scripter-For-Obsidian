@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem } from 'obsidian';
+import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder } from 'obsidian';
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 
@@ -47,7 +47,7 @@ interface ExtendedMenuItem extends MenuItem {
 }
 
 export default class ScripterPlugin extends Plugin {
-    onload() {
+    async onload() {
         // 1. Settings / Help Tab
         this.addSettingTab(new ScripterSettingTab(this.app, this));
 
@@ -58,9 +58,19 @@ export default class ScripterPlugin extends Plugin {
             editorCallback: (editor: Editor) => this.renumberScenes(editor)
         });
 
+        // 2a. New Script Command & Ribbon
+        this.addRibbonIcon('scroll-text', 'New script', () => {
+            this.createNewScript();
+        });
+
+        this.addCommand({
+            id: 'create-new-script',
+            name: 'Create new script',
+            callback: () => this.createNewScript()
+        });
+
         // 3. Post Processor (Reading Mode & PDF)
         this.registerMarkdownPostProcessor((element, context) => {
-            // **Scope Check**: Only process if cssclasses includes 'fountain' or 'script'
             const frontmatter = context.frontmatter;
             const cssClasses = frontmatter?.cssclasses;
             const classesArray = Array.isArray(cssClasses) ? cssClasses : (typeof cssClasses === 'string' ? [cssClasses] : []);
@@ -69,193 +79,69 @@ export default class ScripterPlugin extends Plugin {
                 return;
             }
 
-            // Include 'li' to handle numbered lists
-            const lines = Array.from(element.querySelectorAll('p, div, blockquote, li'));
-            let previousType: string | null = null;
+            const paragraphs = element.querySelectorAll('p');
+            let globalPreviousType = 'ACTION';
 
-            for (let i = 0; i < lines.length; i++) {
-                let p = lines[i] as HTMLElement;
+            paragraphs.forEach((p) => {
+                const sectionInfo = context.getSectionInfo(p);
+                let sourceLines: string[] = [];
 
-                // Optimized Splitting Logic (Recursive Search for BR or Newline)
-                // Used to support Character and Dialogue on the same line (separated by single line break).
-
-                let splitNode: Node | null = null;
-                let splitOffset = -1;
-
-                // Helper to find split in children
-                const findSplit = (nodes: NodeListOf<ChildNode> | Node[]): boolean => {
-                    for (let j = 0; j < nodes.length; j++) {
-                        const node = nodes[j];
-                        if (node.nodeName === 'BR') {
-                            splitNode = node;
-                            return true;
-                        }
-                        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-                            const nl = node.textContent.indexOf('\n');
-                            if (nl !== -1) {
-                                splitNode = node;
-                                splitOffset = nl;
-                                return true;
-                            }
-                        }
-                        // Recursive check for spans/strong/em etc but NOT other blocks
-                        if (node.hasChildNodes() && node.nodeName !== 'P' && node.nodeName !== 'DIV') {
-                            if (findSplit(node.childNodes)) return true;
-                        }
-                    }
-                    return false;
-                };
-
-                if (findSplit(p.childNodes)) {
-                    // Split found at splitNode!
-
-                    // 1. Extract Text Before Split (for Detection)
-                    // We need to traverse from start of P until splitNode
-                    let textBefore = "";
-
-                    const collectText = (root: Node): boolean => {
-                        for (let k = 0; k < root.childNodes.length; k++) {
-                            const node = root.childNodes[k];
-                            if (node === splitNode) {
-                                if (splitOffset !== -1 && node.textContent) {
-                                    textBefore += node.textContent.substring(0, splitOffset);
-                                }
-                                return true; // Stop collecting
-                            }
-                            if (node.contains(splitNode)) {
-                                if (collectText(node)) return true;
-                            } else {
-                                textBefore += node.textContent || "";
-                            }
-                        }
-                        return false;
-                    };
-                    collectText(p);
-                    textBefore = textBefore.trim();
-
-                    const firstFormat = this.detectExplicitFormat(textBefore);
-
-                    if (firstFormat?.typeKey === 'CHARACTER') {
-
-                        // Strategy: 
-                        // 1. Clone the P element to create the Dialogue part (newP).
-                        // 2. Remove everything BEFORE the split from newP.
-                        // 3. Remove everything AFTER the split from old P.
-
-                        // Action 1: Create Dialogue P (Clone to keep styles/spans)
-                        const newP = p.cloneNode(true) as HTMLElement;
-                        newP.className = ''; // clear classes
-                        newP.addClass(CSS_CLASSES.DIALOGUE);
-
-                        // Clean newP: Remove nodes until we hit the split (or equivalent ref)
-                        // Note: splitNode in newP is different object than splitNode in p. 
-                        // But structures are identical. We can match by index or strictly traverse.
-                        // Simpler: Move nodes? No, recursive structure makes moving hard.
-                        // Let's use Range to delete contents.
-
-                        // Setup Range for newP (Delete Start -> Split)
-                        // But we can't easily map splitNode to newP's splitNode.
-
-                        // Alternative Strategy: Move nodes from P to newP starting from split.
-                        // Since we found splitNode in P, let's use Range to extract the "Tail".
-
-                        const range = document.createRange();
-                        if (splitOffset !== -1) {
-                            // Text Node Split
-                            range.setStart(splitNode!, splitOffset + 1); // Skip the newline
-                        } else {
-                            // BR Element Split
-                            range.setStartAfter(splitNode!);
-                        }
-                        range.setEndAfter(p.lastChild!);
-
-                        const dialogueFragment = range.extractContents();
-
-                        // Create newP and append dialogue
-                        const dialogueP = createEl('p');
-                        dialogueP.addClass(CSS_CLASSES.DIALOGUE);
-                        dialogueP.appendChild(dialogueFragment);
-
-                        // Cleanup original P (Character)
-                        // Remove the split node itself (the \n or BR) if it remains
-                        if (splitOffset !== -1) {
-                            // Trim the text node in P
-                            if (splitNode!.textContent) {
-                                splitNode!.textContent = splitNode!.textContent.substring(0, splitOffset);
-                            }
-                        } else {
-                            // Remove the BR element
-                            if (splitNode && splitNode.parentNode) {
-                                splitNode.parentNode.removeChild(splitNode);
-                            }
-                        }
-
-                        // Apply Character Formatting to P
-                        // Reset content slightly? No, DOM is now correct (Head + Split removed).
-                        // Check if p is empty?
-                        if (p.textContent?.trim()) {
-                            this.applyFormatToElement(p, firstFormat);
-                            previousType = 'CHARACTER';
-
-                            // Insert Dialogue P
-                            if (dialogueP.textContent?.trim()) {
-                                p.insertAdjacentElement('afterend', dialogueP);
-                                previousType = 'DIALOGUE';
-                            }
-                            continue;
-                        }
-                    }
-                }
-
-                // Normal Single Line Processing
-                let text = p.textContent?.trim() || '';
-                if (!text) {
-                    previousType = null;
-                    continue;
-                }
-
-                const explicitFormat = this.detectExplicitFormat(text);
-
-                if (explicitFormat) {
-                    // Specific Handling for same-line "Character: Dialogue"
-                    const colonMatch = text.match(CHARACTER_COLON_REGEX);
-                    if (colonMatch && colonMatch[2].trim()) {
-                        // Split into Character and Dialogue
-                        p.textContent = colonMatch[1] + (text.includes('：') ? '：' : ':');
-                        this.applyFormatToElement(p, explicitFormat);
-
-                        const dialogueP = createEl('p');
-                        dialogueP.addClass(CSS_CLASSES.DIALOGUE);
-                        dialogueP.textContent = colonMatch[2];
-                        p.insertAdjacentElement('afterend', dialogueP);
-
-                        previousType = 'DIALOGUE';
-                        continue;
-                    }
-
-                    this.applyFormatToElement(p, explicitFormat);
-                    previousType = explicitFormat.typeKey;
+                if (sectionInfo) {
+                    const { text: fullSource, lineStart, lineEnd } = sectionInfo;
+                    sourceLines = fullSource.split('\n').slice(lineStart, lineEnd + 1);
                 } else {
-                    // Auto-Dialogue Detection
-                    // Only assume Dialogue if strictly following Character, Parenthetical, or previous Dialogue.
-                    if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
-                        p.addClass(CSS_CLASSES.DIALOGUE);
-                        previousType = 'DIALOGUE';
-                    } else {
-                        p.addClass(CSS_CLASSES.ACTION);
-                        previousType = 'ACTION';
-                    }
+                    // Fallback for PDF Export (where sectionInfo is null)
+                    // We treat the rendered text as the source line.
+                    const text = p.textContent || '';
+                    sourceLines = text.split('\n');
                 }
 
-                // Parenthetical Inline Styling (Apply to Dialogue and Action)
-                if (previousType === 'DIALOGUE' || previousType === 'ACTION') {
-                    const html = p.innerHTML;
-                    const replaced = html.replace(/(\(.*?\)|（.*?）)/g, '<span class="script-parenthetical-inline">$1</span>');
-                    if (replaced !== html) {
-                        p.innerHTML = replaced;
+                // Revert to internal div strategy which was confirmed perfect for Reading Mode
+                p.empty();
+
+                sourceLines.forEach((lineText) => {
+                    const trimmedLine = lineText.trim();
+                    if (!trimmedLine) {
+                        globalPreviousType = 'ACTION';
+                        return;
                     }
-                }
-            }
+
+                    const format = this.detectExplicitFormat(trimmedLine);
+                    const container = p.createDiv();
+
+                    if (format) {
+                        container.addClass(format.cssClass);
+                        let displayText = trimmedLine;
+                        if (format.removePrefix) {
+                            displayText = trimmedLine.substring(format.markerLength).trim();
+                        }
+
+                        const colonMatch = displayText.match(CHARACTER_COLON_REGEX);
+                        if (format.typeKey === 'CHARACTER' && colonMatch) {
+                            const [_, charName, dialogueText] = colonMatch;
+                            container.setText(charName);
+                            if (dialogueText.trim()) {
+                                const diagDiv = p.createDiv(CSS_CLASSES.DIALOGUE);
+                                diagDiv.setText(dialogueText.trim());
+                                globalPreviousType = 'DIALOGUE';
+                            } else {
+                                globalPreviousType = 'CHARACTER';
+                            }
+                        } else {
+                            container.setText(displayText);
+                            globalPreviousType = format.typeKey;
+                        }
+                    } else if (globalPreviousType === 'CHARACTER' || globalPreviousType === 'PARENTHETICAL' || globalPreviousType === 'DIALOGUE') {
+                        container.addClass(CSS_CLASSES.DIALOGUE);
+                        container.setText(trimmedLine);
+                        globalPreviousType = 'DIALOGUE';
+                    } else {
+                        container.addClass(CSS_CLASSES.ACTION);
+                        container.setText(trimmedLine);
+                        globalPreviousType = 'ACTION';
+                    }
+                });
+            });
         });
 
         // 4. Editor Extension (Live Preview)
@@ -264,6 +150,15 @@ export default class ScripterPlugin extends Plugin {
         // 5. Context Menu
         this.registerEvent(
             this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: MarkdownView) => {
+                // Scope Check: Robust check using Metadata Cache instead of DOM
+                const fileCache = view.file ? this.app.metadataCache.getFileCache(view.file) : null;
+                const cssClasses = fileCache?.frontmatter?.cssclasses;
+                const classesArray = Array.isArray(cssClasses) ? cssClasses : (typeof cssClasses === 'string' ? [cssClasses] : []);
+
+                if (!classesArray.includes('fountain') && !classesArray.includes('script')) {
+                    return;
+                }
+
                 menu.addItem((item: MenuItem) => {
                     item.setTitle("Scripter").setIcon("film");
                     const subMenu = (item as ExtendedMenuItem).setSubmenu();
@@ -304,6 +199,26 @@ export default class ScripterPlugin extends Plugin {
                 });
             })
         );
+
+        // 6. File Explorer Context Menu
+        this.registerEvent(
+            this.app.workspace.on("file-menu", (menu: Menu, file: TFile | TFolder) => {
+                menu.addItem((item) => {
+                    item
+                        .setTitle("New script")
+                        .setIcon("scroll-text")
+                        .onClick(async () => {
+                            let folderPath = "/";
+                            if (file instanceof TFolder) {
+                                folderPath = file.path;
+                            } else if (file instanceof TFile) {
+                                folderPath = file.parent?.path || "/";
+                            }
+                            await this.createNewScript(folderPath);
+                        });
+                });
+            })
+        );
     }
 
     onunload() {
@@ -329,6 +244,9 @@ export default class ScripterPlugin extends Plugin {
 
             buildDecorations(view: EditorView): DecorationSet {
                 const builder = new RangeSetBuilder<Decoration>();
+                const isScript = view.dom.closest('.fountain') || view.dom.closest('.script');
+                if (!isScript) return builder.finish();
+
                 const selection = view.state.selection;
                 let previousType: string | null = null;
                 const hiddenDeco = Decoration.mark({ class: LP_CLASSES.SYMBOL });
@@ -458,25 +376,6 @@ export default class ScripterPlugin extends Plugin {
         return null;
     }
 
-    applyFormatToElement(p: HTMLElement, format: ScriptFormat) {
-        p.addClass(format.cssClass);
-        if (format.removePrefix && format.markerLength > 0) {
-            this.stripMarkerFromElement(p, format.markerLength);
-        }
-    }
-
-    stripMarkerFromElement(element: HTMLElement, length: number) {
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-        const firstTextNode = walker.nextNode();
-        if (firstTextNode) {
-            let text = firstTextNode.textContent || '';
-            const removeCount = length;
-            if (text.length >= removeCount) {
-                firstTextNode.textContent = text.substring(removeCount);
-            }
-        }
-    }
-
     renumberScenes(editor: Editor) {
         const lineCount = editor.lineCount();
         let sceneCounter = 0;
@@ -550,6 +449,35 @@ export default class ScripterPlugin extends Plugin {
                 return;
             }
         }
+    }
+
+    async createNewScript(folderPath?: string) {
+        let targetFolder = folderPath;
+        if (!targetFolder) {
+            const activeFile = this.app.workspace.getActiveFile();
+            targetFolder = activeFile ? (activeFile.parent?.path || "/") : "/";
+        }
+
+        const baseName = "Untitled Script";
+        let fileName = `${baseName}.md`;
+        let filePath = targetFolder === "/" ? fileName : `${targetFolder}/${fileName}`;
+
+        let counter = 1;
+        while (await this.app.vault.adapter.exists(filePath)) {
+            fileName = `${baseName} ${counter}.md`;
+            filePath = targetFolder === "/" ? fileName : `${targetFolder}/${fileName}`;
+            counter++;
+        }
+
+        const frontmatterContent = "---\ncssclasses: fountain\n---\n\n";
+        const newFile = await this.app.vault.create(filePath, frontmatterContent);
+
+        const leaf = this.app.workspace.getLeaf(false);
+        await leaf.openFile(newFile);
+
+        // Optional: Trigger rename immediately for better UX
+        // @ts-ignore - internal API
+        this.app.workspace.trigger("rename", newFile, newFile.path);
     }
 }
 
