@@ -16,11 +16,7 @@
     text-align: left !important;
     margin-top: 2em !important;
     margin-bottom: 1em !important;
-    /* display: list-item !important;  <-- REMOVED: 避免在非列表的 p 元素上出現黑點 */
-
     border-bottom: none !important;
-    /* 避免 h1-h6 的預設底線 */
-    /* 懸掛縮排：如果場景標題太長，第二行對齊文字而不是編號 */
     padding-left: 0 !important;
 
 }
@@ -91,7 +87,9 @@ li.script-scene::marker {
     }
 
     /* Character: Keep centered but strict spacing */
-    .script-character {
+    /* Character: Keep centered but strict spacing */
+    .script-character,
+    p.script-character {
         text-align: center !important;
         margin-left: 20% !important;
         margin-right: 20% !important;
@@ -103,8 +101,8 @@ li.script-scene::marker {
     /* Dialogue: Narrower column */
     .script-dialogue {
         text-align: left !important;
-        margin-left: 10% !important;
-        margin-right: 10% !important;
+        margin-left: 8% !important;
+        margin-right: 8% !important;
         margin-top: 0px !important;
         margin-bottom: 1em !important;
         font-weight: normal !important;

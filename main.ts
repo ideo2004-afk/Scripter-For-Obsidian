@@ -74,82 +74,134 @@ export default class ScripterPlugin extends Plugin {
             for (let i = 0; i < lines.length; i++) {
                 let p = lines[i] as HTMLElement;
 
-                // Optimized Splitting Logic (No innerHTML)
-                // We check for BR elements OR newline characters in literal text nodes.
-                let splitIndex = -1;
-                let splitTextNode: Node | null = null;
+                // Optimized Splitting Logic (Recursive Search for BR or Newline)
+                // Used to support Character and Dialogue on the same line (separated by single line break).
+
+                let splitNode: Node | null = null;
                 let splitOffset = -1;
 
-                const childNodes = Array.from(p.childNodes);
-
-                for (let j = 0; j < childNodes.length; j++) {
-                    const node = childNodes[j];
-                    if (node.nodeName === 'BR') {
-                        splitIndex = j;
-                        break;
-                    }
-                    if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-                        // Check for newline chars which strictly imply line break in source
-                        const nl = node.textContent.indexOf('\n');
-                        if (nl !== -1) {
-                            splitIndex = j;
-                            splitTextNode = node;
-                            splitOffset = nl;
-                            break;
+                // Helper to find split in children
+                const findSplit = (nodes: NodeListOf<ChildNode> | Node[]): boolean => {
+                    for (let j = 0; j < nodes.length; j++) {
+                        const node = nodes[j];
+                        if (node.nodeName === 'BR') {
+                            splitNode = node;
+                            return true;
+                        }
+                        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+                            const nl = node.textContent.indexOf('\n');
+                            if (nl !== -1) {
+                                splitNode = node;
+                                splitOffset = nl;
+                                return true;
+                            }
+                        }
+                        // Recursive check for spans/strong/em etc but NOT other blocks
+                        if (node.hasChildNodes() && node.nodeName !== 'P' && node.nodeName !== 'DIV') {
+                            if (findSplit(node.childNodes)) return true;
                         }
                     }
-                }
+                    return false;
+                };
 
-                if (splitIndex !== -1) {
-                    // Split found!
-                    // Determine text before split to check if it is a Character
+                if (findSplit(p.childNodes)) {
+                    // Split found at splitNode!
+
+                    // 1. Extract Text Before Split (for Detection)
+                    // We need to traverse from start of P until splitNode
                     let textBefore = "";
-                    for (let k = 0; k < splitIndex; k++) textBefore += childNodes[k].textContent || "";
-                    if (splitTextNode) {
-                        textBefore += splitTextNode.textContent!.substring(0, splitOffset);
-                    }
+
+                    const collectText = (root: Node): boolean => {
+                        for (let k = 0; k < root.childNodes.length; k++) {
+                            const node = root.childNodes[k];
+                            if (node === splitNode) {
+                                if (splitOffset !== -1 && node.textContent) {
+                                    textBefore += node.textContent.substring(0, splitOffset);
+                                }
+                                return true; // Stop collecting
+                            }
+                            if (node.contains(splitNode)) {
+                                if (collectText(node)) return true;
+                            } else {
+                                textBefore += node.textContent || "";
+                            }
+                        }
+                        return false;
+                    };
+                    collectText(p);
                     textBefore = textBefore.trim();
 
                     const firstFormat = this.detectExplicitFormat(textBefore);
 
                     if (firstFormat?.typeKey === 'CHARACTER') {
-                        // Action 1: Create Dialogue P
-                        const newP = createEl('p');
+
+                        // Strategy: 
+                        // 1. Clone the P element to create the Dialogue part (newP).
+                        // 2. Remove everything BEFORE the split from newP.
+                        // 3. Remove everything AFTER the split from old P.
+
+                        // Action 1: Create Dialogue P (Clone to keep styles/spans)
+                        const newP = p.cloneNode(true) as HTMLElement;
+                        newP.className = ''; // clear classes
                         newP.addClass(CSS_CLASSES.DIALOGUE);
 
-                        // Move all nodes AFTER splitIndex to newP
-                        for (let k = splitIndex + 1; k < childNodes.length; k++) {
-                            newP.appendChild(childNodes[k]);
+                        // Clean newP: Remove nodes until we hit the split (or equivalent ref)
+                        // Note: splitNode in newP is different object than splitNode in p. 
+                        // But structures are identical. We can match by index or strictly traverse.
+                        // Simpler: Move nodes? No, recursive structure makes moving hard.
+                        // Let's use Range to delete contents.
+
+                        // Setup Range for newP (Delete Start -> Split)
+                        // But we can't easily map splitNode to newP's splitNode.
+
+                        // Alternative Strategy: Move nodes from P to newP starting from split.
+                        // Since we found splitNode in P, let's use Range to extract the "Tail".
+
+                        const range = document.createRange();
+                        if (splitOffset !== -1) {
+                            // Text Node Split
+                            range.setStart(splitNode!, splitOffset + 1); // Skip the newline
+                        } else {
+                            // BR Element Split
+                            range.setStartAfter(splitNode!);
                         }
+                        range.setEndAfter(p.lastChild!);
 
-                        // Handle the split node
-                        if (splitTextNode) {
-                            const fullText = splitTextNode.textContent || '';
-                            const textAfter = fullText.substring(splitOffset + 1);
-                            // Set character text
-                            splitTextNode.textContent = fullText.substring(0, splitOffset);
+                        const dialogueFragment = range.extractContents();
 
-                            if (textAfter.trim()) {
-                                newP.prepend(document.createTextNode(textAfter));
+                        // Create newP and append dialogue
+                        const dialogueP = createEl('p');
+                        dialogueP.addClass(CSS_CLASSES.DIALOGUE);
+                        dialogueP.appendChild(dialogueFragment);
+
+                        // Cleanup original P (Character)
+                        // Remove the split node itself (the \n or BR) if it remains
+                        if (splitOffset !== -1) {
+                            // Trim the text node in P
+                            if (splitNode!.textContent) {
+                                splitNode!.textContent = splitNode!.textContent.substring(0, splitOffset);
                             }
                         } else {
-                            // It was a BR. Remove it from p (so it doesn't trail the character name)
-                            // We don't need it in newP either.
-                            p.removeChild(childNodes[splitIndex]);
+                            // Remove the BR element
+                            if (splitNode && splitNode.parentNode) {
+                                splitNode.parentNode.removeChild(splitNode);
+                            }
                         }
 
-                        // Action 2: Transform Current P to Character
-                        // We reset textContent to remove any residual empty nodes or BRs
-                        p.textContent = textBefore;
-                        this.applyFormatToElement(p, firstFormat);
-                        previousType = 'CHARACTER';
+                        // Apply Character Formatting to P
+                        // Reset content slightly? No, DOM is now correct (Head + Split removed).
+                        // Check if p is empty?
+                        if (p.textContent?.trim()) {
+                            this.applyFormatToElement(p, firstFormat);
+                            previousType = 'CHARACTER';
 
-                        // Insert newP
-                        if (newP.textContent?.trim()) {
-                            p.insertAdjacentElement('afterend', newP);
-                            previousType = 'DIALOGUE';
+                            // Insert Dialogue P
+                            if (dialogueP.textContent?.trim()) {
+                                p.insertAdjacentElement('afterend', dialogueP);
+                                previousType = 'DIALOGUE';
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
 

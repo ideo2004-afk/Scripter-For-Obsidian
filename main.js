@@ -63,7 +63,7 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
       editorCallback: (editor) => this.renumberScenes(editor)
     });
     this.registerMarkdownPostProcessor((element, context) => {
-      var _a, _b;
+      var _a, _b, _c;
       const frontmatter = context.frontmatter;
       const cssClasses = (frontmatter == null ? void 0 : frontmatter.cssclasses) || [];
       if (!Array.isArray(cssClasses) || !cssClasses.includes("fountain") && !cssClasses.includes("script")) {
@@ -73,62 +73,89 @@ var ScripterPlugin = class extends import_obsidian.Plugin {
       let previousType = null;
       for (let i = 0; i < lines.length; i++) {
         let p = lines[i];
-        let splitIndex = -1;
-        let splitTextNode = null;
+        let splitNode = null;
         let splitOffset = -1;
-        const childNodes = Array.from(p.childNodes);
-        for (let j = 0; j < childNodes.length; j++) {
-          const node = childNodes[j];
-          if (node.nodeName === "BR") {
-            splitIndex = j;
-            break;
-          }
-          if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-            const nl = node.textContent.indexOf("\n");
-            if (nl !== -1) {
-              splitIndex = j;
-              splitTextNode = node;
-              splitOffset = nl;
-              break;
+        const findSplit = (nodes) => {
+          for (let j = 0; j < nodes.length; j++) {
+            const node = nodes[j];
+            if (node.nodeName === "BR") {
+              splitNode = node;
+              return true;
+            }
+            if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+              const nl = node.textContent.indexOf("\n");
+              if (nl !== -1) {
+                splitNode = node;
+                splitOffset = nl;
+                return true;
+              }
+            }
+            if (node.hasChildNodes() && node.nodeName !== "P" && node.nodeName !== "DIV") {
+              if (findSplit(node.childNodes))
+                return true;
             }
           }
-        }
-        if (splitIndex !== -1) {
+          return false;
+        };
+        if (findSplit(p.childNodes)) {
           let textBefore = "";
-          for (let k = 0; k < splitIndex; k++)
-            textBefore += childNodes[k].textContent || "";
-          if (splitTextNode) {
-            textBefore += splitTextNode.textContent.substring(0, splitOffset);
-          }
+          const collectText = (root) => {
+            for (let k = 0; k < root.childNodes.length; k++) {
+              const node = root.childNodes[k];
+              if (node === splitNode) {
+                if (splitOffset !== -1 && node.textContent) {
+                  textBefore += node.textContent.substring(0, splitOffset);
+                }
+                return true;
+              }
+              if (node.contains(splitNode)) {
+                if (collectText(node))
+                  return true;
+              } else {
+                textBefore += node.textContent || "";
+              }
+            }
+            return false;
+          };
+          collectText(p);
           textBefore = textBefore.trim();
           const firstFormat = this.detectExplicitFormat(textBefore);
           if ((firstFormat == null ? void 0 : firstFormat.typeKey) === "CHARACTER") {
-            const newP = createEl("p");
+            const newP = p.cloneNode(true);
+            newP.className = "";
             newP.addClass(CSS_CLASSES.DIALOGUE);
-            for (let k = splitIndex + 1; k < childNodes.length; k++) {
-              newP.appendChild(childNodes[k]);
+            const range = document.createRange();
+            if (splitOffset !== -1) {
+              range.setStart(splitNode, splitOffset + 1);
+            } else {
+              range.setStartAfter(splitNode);
             }
-            if (splitTextNode) {
-              const fullText = splitTextNode.textContent || "";
-              const textAfter = fullText.substring(splitOffset + 1);
-              splitTextNode.textContent = fullText.substring(0, splitOffset);
-              if (textAfter.trim()) {
-                newP.prepend(document.createTextNode(textAfter));
+            range.setEndAfter(p.lastChild);
+            const dialogueFragment = range.extractContents();
+            const dialogueP = createEl("p");
+            dialogueP.addClass(CSS_CLASSES.DIALOGUE);
+            dialogueP.appendChild(dialogueFragment);
+            if (splitOffset !== -1) {
+              if (splitNode.textContent) {
+                splitNode.textContent = splitNode.textContent.substring(0, splitOffset);
               }
             } else {
-              p.removeChild(childNodes[splitIndex]);
+              if (splitNode && splitNode.parentNode) {
+                splitNode.parentNode.removeChild(splitNode);
+              }
             }
-            p.textContent = textBefore;
-            this.applyFormatToElement(p, firstFormat);
-            previousType = "CHARACTER";
-            if ((_a = newP.textContent) == null ? void 0 : _a.trim()) {
-              p.insertAdjacentElement("afterend", newP);
-              previousType = "DIALOGUE";
+            if ((_a = p.textContent) == null ? void 0 : _a.trim()) {
+              this.applyFormatToElement(p, firstFormat);
+              previousType = "CHARACTER";
+              if ((_b = dialogueP.textContent) == null ? void 0 : _b.trim()) {
+                p.insertAdjacentElement("afterend", dialogueP);
+                previousType = "DIALOGUE";
+              }
+              continue;
             }
-            continue;
           }
         }
-        let text = ((_b = p.textContent) == null ? void 0 : _b.trim()) || "";
+        let text = ((_c = p.textContent) == null ? void 0 : _c.trim()) || "";
         if (!text) {
           previousType = null;
           continue;
