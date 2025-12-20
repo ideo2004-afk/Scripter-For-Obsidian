@@ -78,8 +78,8 @@ export class DocxExporter {
 
                 const colonMatch = charName.match(CHARACTER_COLON_REGEX);
                 if (colonMatch) {
-                    charName = colonMatch[1].trim();
-                    dialogueAfterColon = colonMatch[2].trim();
+                    charName = colonMatch[1].trim() + colonMatch[2];
+                    dialogueAfterColon = colonMatch[3].trim();
                 }
 
                 paragraphs.push(new Paragraph({

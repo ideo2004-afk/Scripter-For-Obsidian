@@ -19059,8 +19059,8 @@ var DocxExporter = class {
         let dialogueAfterColon = "";
         const colonMatch = charName.match(CHARACTER_COLON_REGEX);
         if (colonMatch) {
-          charName = colonMatch[1].trim();
-          dialogueAfterColon = colonMatch[2].trim();
+          charName = colonMatch[1].trim() + colonMatch[2];
+          dialogueAfterColon = colonMatch[3].trim();
         }
         paragraphs.push(new Paragraph({
           children: [new TextRun({ text: charName.toUpperCase(), font: "Courier New", size: 24 })],
@@ -19234,7 +19234,7 @@ var SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
 var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*(.*)$/;
+var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
 var CSS_CLASSES = {
   SCENE: "script-scene",
   CHARACTER: "script-character",
@@ -19331,8 +19331,8 @@ var ScripterPlugin = class extends import_obsidian2.Plugin {
             }
             const colonMatch = displayText.match(CHARACTER_COLON_REGEX);
             if (format.typeKey === "CHARACTER" && colonMatch) {
-              const [_, charName, dialogueText] = colonMatch;
-              container.setText(charName);
+              const [_, charName, colon, dialogueText] = colonMatch;
+              container.setText(charName + colon);
               if (dialogueText.trim()) {
                 const diagDiv = el.createDiv(CSS_CLASSES.DIALOGUE);
                 diagDiv.setText(dialogueText.trim());

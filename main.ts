@@ -15,7 +15,7 @@ export const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.
 export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*(.*)$/;
+export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
 
 // CSS Classes (Reading Mode / PDF)
 const CSS_CLASSES = {
@@ -152,8 +152,8 @@ export default class ScripterPlugin extends Plugin {
 
                         const colonMatch = displayText.match(CHARACTER_COLON_REGEX);
                         if (format.typeKey === 'CHARACTER' && colonMatch) {
-                            const [_, charName, dialogueText] = colonMatch;
-                            container.setText(charName);
+                            const [_, charName, colon, dialogueText] = colonMatch;
+                            container.setText(charName + colon);
                             if (dialogueText.trim()) {
                                 const diagDiv = el.createDiv(CSS_CLASSES.DIALOGUE);
                                 diagDiv.setText(dialogueText.trim());
