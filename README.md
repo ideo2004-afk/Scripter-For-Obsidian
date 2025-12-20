@@ -18,7 +18,7 @@ Scripter for Obsidian is a plugin designed to bring industry-standard screenplay
 
 ### 1. Scene Headings (場景)
 Start a line with standard screenplay prefixes. They will automatically bold.
-*   **Syntax**: `INT.`, `EXT.`, `INT./EXT.`, `I/E.`
+*   **Syntax**: `INT.`, `EXT.`, `INT./EXT.`, `I/E.`, or start a line with a period `.` to force a scene heading.
 *   **Example**: 
     ```text
     INT. HOUSE - NIGHT

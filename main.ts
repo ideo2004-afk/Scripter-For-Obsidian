@@ -9,7 +9,7 @@ const SCRIPT_MARKERS = {
 };
 
 // Regex Definitions
-const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s])/i;
+const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
 const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
@@ -357,6 +357,9 @@ export default class ScripterPlugin extends Plugin {
                         else if (SCENE_REGEX.test(text)) {
                             lpClass = LP_CLASSES.SCENE;
                             currentType = 'SCENE';
+                            if (!isCursorOnLine && text.startsWith('.')) {
+                                shouldHideMarker = true;
+                            }
                         }
                         else if (TRANSITION_REGEX.test(text)) {
                             lpClass = LP_CLASSES.TRANSITION;
@@ -424,7 +427,13 @@ export default class ScripterPlugin extends Plugin {
 
     detectExplicitFormat(text: string): ScriptFormat | null {
         if (SCENE_REGEX.test(text)) {
-            return { cssClass: CSS_CLASSES.SCENE, removePrefix: false, markerLength: 0, typeKey: 'SCENE' };
+            const isForcedScene = text.startsWith('.');
+            return {
+                cssClass: CSS_CLASSES.SCENE,
+                removePrefix: isForcedScene,
+                markerLength: isForcedScene ? 1 : 0,
+                typeKey: 'SCENE'
+            };
         }
         if (TRANSITION_REGEX.test(text)) {
             return { cssClass: CSS_CLASSES.TRANSITION, removePrefix: false, markerLength: 0, typeKey: 'TRANSITION' };
