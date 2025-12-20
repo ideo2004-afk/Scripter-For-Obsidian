@@ -1,153 +1,102 @@
-/* Screenplay Formatting Styles */
+/* Scripter CSS: Hollywood Standard & Obsidian Integration */
 
-/* Scoped styles for notes with 'fountain' or 'script' class */
 .fountain,
-.script,
-.markdown-preview-view.fountain,
-.markdown-preview-view.script,
-.markdown-source-view.fountain,
-.markdown-source-view.script {
+.script {
+    --script-dialogue-margin: 7em;
 
-    .script-scene,
-    .script-character,
-    .script-dialogue,
-    .script-parenthetical,
-    .script-transition,
-    .script-action {
+    /* Global Script Color */
+    & .script-scene,
+    & .script-character,
+    & .script-dialogue,
+    & .script-parenthetical,
+    & .script-transition,
+    & .script-action {
         color: var(--text-normal) !important;
     }
 
-    /* Scene Heading: . */
-    .script-scene {
-        font-weight: bold !important;
+    /* Reading Mode: Handle p and li (for renumbered scenes) */
+    & .script-scene {
+        font-weight: 700 !important;
         text-transform: uppercase;
         text-align: left !important;
-        margin-top: 3em !important;
+        margin-top: 2em !important;
         margin-bottom: 1em !important;
-        border-bottom: none !important;
-        padding-left: 0 !important;
-    }
-
-    /* Character: @ */
-    .script-character {
-        text-transform: uppercase;
-        text-align: center !important;
-        margin-top: 1em !important;
-        margin-bottom: 0px !important;
         display: block !important;
     }
 
-    /* Dialogue: : or ： */
-    .script-dialogue {
+    & .script-character {
+        text-transform: uppercase;
         text-align: center !important;
-        margin-left: 7em !important;
-        margin-right: 7em !important;
-        margin-top: 0px !important;
-        margin-bottom: 0px !important;
-        /* Keep it tight */
+        margin-top: 1em !important;
+        display: block !important;
+    }
+
+    & .script-dialogue {
+        text-align: left !important;
+        margin: 0 var(--script-dialogue-margin) !important;
         display: block !important;
         white-space: pre-wrap !important;
     }
 
-    /* Parenthetical: ( */
-    .script-parenthetical {
-        text-align: center !important;
-        margin-left: 7em !important;
-        margin-right: 7em !important;
-        margin-bottom: 0px !important;
+    & .script-parenthetical {
+        text-align: left !important;
+        margin-left: var(--script-dialogue-margin) !important;
         font-style: italic !important;
         display: block !important;
         color: var(--text-muted) !important;
     }
 
-    /* Transition: CUT TO: etc. */
-    .script-transition {
+    & .script-transition {
         text-align: right !important;
         text-transform: uppercase;
         margin-top: 1.5em !important;
-        margin-bottom: 1em !important;
         display: block !important;
-        margin-right: 1em !important;
     }
 
-    /* PDF Export / Print Settings */
-    @media print {
-        .script-scene {
-            margin-top: 1.5em !important;
-            margin-bottom: 0.5em !important;
-        }
-
-        .script-character {
-            text-align: center !important;
-            margin-left: 9em !important;
-            margin-right: 9em !important;
-            margin-bottom: 0px !important;
-            page-break-after: avoid;
-        }
-
-        .script-dialogue {
-            text-align: center !important;
-            margin-left: 7em !important;
-            margin-right: 7em !important;
-            margin-bottom: 1em !important;
-            white-space: pre-wrap !important;
-        }
-
-        .script-parenthetical {
-            text-align: center !important;
-            margin-left: 7em !important;
-            margin-right: 7em !important;
-            margin-top: 0px !important;
-            page-break-before: avoid;
-        }
-
-        .script-transition {
-            text-align: right !important;
-            margin-right: 1.5em !important;
-        }
+    /* Hide list markers for renumbered scenes */
+    & li {
+        list-style: none !important;
+        padding-left: 0 !important;
+        margin-left: 0 !important;
     }
 
-    /* LP Classes (Live Preview / Editing Mode) */
-    .lp-scene {
-        font-weight: bold !important;
+    /* Live Preview Classes */
+    & .lp-scene {
+        font-weight: 700 !important;
         text-transform: uppercase;
     }
 
-    .lp-character {
+    & .lp-character {
         text-transform: uppercase;
         text-align: center !important;
     }
 
-    .lp-dialogue {
-        padding-left: 7em !important;
-        padding-right: 7em !important;
-        text-align: center !important;
+    & .lp-dialogue {
+        padding: 0 var(--script-dialogue-margin) !important;
+        text-align: left !important;
     }
 
-    .lp-parenthetical {
+    & .lp-parenthetical {
         font-style: italic !important;
-        text-align: center !important;
+        text-align: left !important;
         color: var(--text-muted) !important;
-        padding-left: 7em !important;
-        padding-right: 7em !important;
+        padding-left: var(--script-dialogue-margin) !important;
     }
 
-    .lp-transition {
+    & .lp-transition {
         text-align: right !important;
         text-transform: uppercase;
     }
 
-    .lp-marker-symbol {
+    & .lp-marker-symbol {
         color: transparent !important;
         font-size: 1px !important;
         letter-spacing: -1ch;
     }
-}
 
-/* Header Styling (H1 Centering) */
-.markdown-preview-view.fountain h1,
-.markdown-preview-view.script h1,
-.markdown-source-view.fountain .HyperMD-header-1,
-.markdown-source-view.script .HyperMD-header-1 {
-    text-align: center !important;
+    /* H1 Title Centering */
+    & h1,
+    & .HyperMD-header-1 {
+        text-align: center !important;
+    }
 }

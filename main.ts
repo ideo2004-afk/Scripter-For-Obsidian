@@ -1,4 +1,5 @@
-import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder } from 'obsidian';
+import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice } from 'obsidian';
+import { DocxExporter } from './docxExporter';
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 
@@ -9,11 +10,11 @@ const SCRIPT_MARKERS = {
 };
 
 // Regex Definitions
-const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
-const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
-const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
-const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*(.*)$/;
+export const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
+export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
+export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
+export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
+export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*(.*)$/;
 
 // CSS Classes (Reading Mode / PDF)
 const CSS_CLASSES = {
@@ -69,6 +70,28 @@ export default class ScripterPlugin extends Plugin {
             callback: () => this.createNewScript()
         });
 
+        // 2b. Export to Docx Command
+        this.addCommand({
+            id: 'export-to-docx',
+            name: 'Export current script to .docx',
+            checkCallback: (checking: boolean) => {
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view) {
+                    const fileCache = this.app.metadataCache.getFileCache(view.file!);
+                    const cssClasses = fileCache?.frontmatter?.cssclasses;
+                    const classesArray = Array.isArray(cssClasses) ? cssClasses : (typeof cssClasses === 'string' ? [cssClasses] : []);
+
+                    if (classesArray.includes('fountain') || classesArray.includes('script')) {
+                        if (!checking) {
+                            this.exportCurrentFileToDocx(view);
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+
         // 3. Post Processor (Reading Mode & PDF)
         this.registerMarkdownPostProcessor((element, context) => {
             const frontmatter = context.frontmatter;
@@ -79,27 +102,25 @@ export default class ScripterPlugin extends Plugin {
                 return;
             }
 
-            const paragraphs = element.querySelectorAll('p');
+            const elements = element.querySelectorAll('p, li');
             let globalPreviousType = 'ACTION';
 
-            paragraphs.forEach((p) => {
-                const sectionInfo = context.getSectionInfo(p);
+            elements.forEach((el) => {
+                const sectionInfo = context.getSectionInfo(el as HTMLElement);
                 let sourceLines: string[] = [];
 
                 if (sectionInfo) {
                     const { text: fullSource, lineStart, lineEnd } = sectionInfo;
                     sourceLines = fullSource.split('\n').slice(lineStart, lineEnd + 1);
                 } else {
-                    // Fallback for PDF Export (where sectionInfo is null)
-                    // We treat the rendered text as the source line.
-                    const text = p.textContent || '';
-                    sourceLines = text.split('\n');
+                    // Fallback for when sectionInfo is null (common in Reading Mode/PDF)
+                    sourceLines = (el.textContent || "").split('\n');
                 }
 
                 // Revert to internal div strategy which was confirmed perfect for Reading Mode
-                p.empty();
+                el.empty();
 
-                sourceLines.forEach((lineText) => {
+                sourceLines.forEach((lineText: string) => {
                     const trimmedLine = lineText.trim();
                     if (!trimmedLine) {
                         globalPreviousType = 'ACTION';
@@ -107,7 +128,7 @@ export default class ScripterPlugin extends Plugin {
                     }
 
                     const format = this.detectExplicitFormat(trimmedLine);
-                    const container = p.createDiv();
+                    const container = (el as HTMLElement).createDiv();
 
                     if (format) {
                         container.addClass(format.cssClass);
@@ -121,7 +142,7 @@ export default class ScripterPlugin extends Plugin {
                             const [_, charName, dialogueText] = colonMatch;
                             container.setText(charName);
                             if (dialogueText.trim()) {
-                                const diagDiv = p.createDiv(CSS_CLASSES.DIALOGUE);
+                                const diagDiv = el.createDiv(CSS_CLASSES.DIALOGUE);
                                 diagDiv.setText(dialogueText.trim());
                                 globalPreviousType = 'DIALOGUE';
                             } else {
@@ -195,6 +216,13 @@ export default class ScripterPlugin extends Plugin {
                     subMenu.addItem((subItem: MenuItem) => {
                         subItem.setTitle("Clear format").setIcon("eraser")
                             .onClick(() => this.clearLinePrefix(editor));
+                    });
+
+                    subMenu.addSeparator();
+
+                    subMenu.addItem((subItem: MenuItem) => {
+                        subItem.setTitle("Export to .docx").setIcon("file-output")
+                            .onClick(() => this.exportCurrentFileToDocx(view));
                     });
                 });
             })
@@ -448,6 +476,32 @@ export default class ScripterPlugin extends Plugin {
                 editor.setLine(cursor.line, newLineContent);
                 return;
             }
+        }
+    }
+
+    async exportCurrentFileToDocx(view: MarkdownView) {
+        const file = view.file;
+        if (!file) return;
+
+        const content = view.editor.getValue();
+        const baseName = file.basename;
+        const folderPath = file.parent?.path || "/";
+        const fileName = `${baseName}.docx`;
+        const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
+
+        try {
+            new Notice(`Exporting ${fileName}...`);
+            const buffer = await DocxExporter.exportToDocx(content, baseName);
+
+            // Convert Buffer to ArrayBuffer for writeBinary
+            const arrayBuffer = (buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
+
+            // Save the file
+            await this.app.vault.adapter.writeBinary(filePath, arrayBuffer);
+            new Notice(`Successfully exported to ${fileName}`);
+        } catch (error) {
+            console.error("Export to DOCX failed:", error);
+            new Notice(`Failed to export to DOCX: ${error.message}`);
         }
     }
 

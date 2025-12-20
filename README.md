@@ -82,10 +82,17 @@ Easily create new script files pre-configured with the correct metadata (`csscla
 - **Context Menu**: Right-click on any folder and select **New script**.
 - **Command Palette**: Search for `Create new script`.
 
-### 📄 Intelligent PDF Export (智慧 PDF 輸出)
-The plugin includes a dedicated print engine (`@media print`) and a **Hybrid Parsing Strategy** that ensures your PDF exports look perfect even if Obsidian collapses line breaks.
-- **Source-Line Precision**: In Reading Mode, formatting is based on the exact source lines.
-- **Smart Fallback**: During PDF export, if source-line mapping is lost, the plugin intelligently parses the text content to preserve character and dialogue formatting.
+### v1.3.0 Update Highlights
+- **Professional DOCX Export**: Generate industry-standard screenplay documents (.docx) with one click.
+- **Hollywood Alignment**: Standardized alignment (Dialogue/Parentheticals left-aligned, Character names centered) for a professional look.
+- **Code Optimization**: Completely removed legacy PDF logic and cleaned up CSS for better performance and maintainability.
+- **Reading Mode Fixes**: Robust handling for renumbered scene headings and list items.
+
+### 📄 Professional DOCX Export (專業 Word 匯出)
+The plugin now features a dedicated Word export engine. Use it to generate industry-standard screenplay documents for sharing with producers or actors.
+- **Source-Line Precision**: Parses your script exactly as you see it in Obsidian.
+- **Standard Formatting**: Automatically applies Courier New font, 1.5" left margins, and correct indentation for characters, dialogue, and parentheticals.
+- **Easy Access**: Right-click anywhere in the script and select **Export to .docx**, or find it in the Command Palette.
 
 ### 🔢 Scene Renumbering (自動場次編號)
 Command: `Scripter: Renumber Scenes`
