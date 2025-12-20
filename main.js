@@ -12434,15 +12434,6 @@ var Spacing = class extends XmlComponent {
     this.root.push(new SpacingAttributes(options));
   }
 };
-var HeadingLevel = {
-  HEADING_1: "Heading1",
-  HEADING_2: "Heading2",
-  HEADING_3: "Heading3",
-  HEADING_4: "Heading4",
-  HEADING_5: "Heading5",
-  HEADING_6: "Heading6",
-  TITLE: "Title"
-};
 var Style$1 = class Style extends XmlComponent {
   constructor(styleId) {
     super("w:pStyle");
@@ -19030,8 +19021,11 @@ var DocxExporter = class {
       }
       if (trimmed.startsWith("# ")) {
         paragraphs.push(new Paragraph({
-          text: trimmed.substring(2).trim(),
-          heading: HeadingLevel.TITLE,
+          children: [new TextRun({
+            text: trimmed.substring(2).trim().toUpperCase(),
+            font: "Courier New",
+            size: 24
+          })],
           alignment: AlignmentType.CENTER,
           spacing: { before: 480, after: 240 }
         }));

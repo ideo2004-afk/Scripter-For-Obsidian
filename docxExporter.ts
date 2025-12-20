@@ -26,11 +26,14 @@ export class DocxExporter {
                 continue;
             }
 
-            // 0. H1 Headers as Title
+            // 0. H1 Headers as Centered Title (Script Style)
             if (trimmed.startsWith('# ')) {
                 paragraphs.push(new Paragraph({
-                    text: trimmed.substring(2).trim(),
-                    heading: HeadingLevel.TITLE,
+                    children: [new TextRun({
+                        text: trimmed.substring(2).trim().toUpperCase(),
+                        font: "Courier New",
+                        size: 24
+                    })],
                     alignment: AlignmentType.CENTER,
                     spacing: { before: 480, after: 240 }
                 }));
