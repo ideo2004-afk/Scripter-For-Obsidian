@@ -396,6 +396,10 @@ export default class ScripterPlugin extends Plugin {
                             lpClass = LP_CLASSES.PARENTHETICAL;
                             currentType = 'PARENTHETICAL';
                         }
+                        else if (OS_DIALOGUE_REGEX.test(text)) {
+                            lpClass = LP_CLASSES.PARENTHETICAL;
+                            currentType = 'PARENTHETICAL';
+                        }
                         else if (text.startsWith(SCRIPT_MARKERS.CHARACTER) ||
                             (/^[A-Z0-9\s-]{1,30}(\s+\([^)]+\))?$/.test(text) && text.length > 0) ||
                             (/^[\u4e00-\u9fa5A-Z0-9\s-]{1,30}$/.test(text)) ||
@@ -405,10 +409,6 @@ export default class ScripterPlugin extends Plugin {
                             if (!isCursorOnLine && text.startsWith(SCRIPT_MARKERS.CHARACTER)) {
                                 shouldHideMarker = true;
                             }
-                        }
-                        else if (OS_DIALOGUE_REGEX.test(text)) {
-                            lpClass = LP_CLASSES.PARENTHETICAL;
-                            currentType = 'PARENTHETICAL';
                         }
                         else {
                             if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
