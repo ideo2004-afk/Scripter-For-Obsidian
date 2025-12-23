@@ -1,4 +1,4 @@
-# Script Editor v1.3.7
+# Script Editor v1.3.8
 
 Script Editor is a Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, and professional DOCX export.
 
