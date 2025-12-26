@@ -1,11 +1,12 @@
-# Script Editor v1.6.0
+# Script Editor v1.6.1
 
 Script Editor is a Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, professional DOCX export, and integrated Story Board/Outline tools.
 
 ---
 
-## 🆕 New in v1.6.0: Interactive Story Board
-The Story Board now supports **Drag & Drop** reordering! You can now visually rearrange your script's structure with precise insertion indicators.
+## 🆕 New in v1.6.1: Scene Color-Coding & Interactive Story Board
+- **Color-Coding**: Organize your story with visual color tags on scene cards! 
+- **Interactive Board**: Full **Drag & Drop** reordering with precise insertion indicators.
 
 ---
 

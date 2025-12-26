@@ -25,6 +25,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var main_exports = {};
 __export(main_exports, {
   CHARACTER_COLON_REGEX: () => CHARACTER_COLON_REGEX,
+  COLOR_TAG_REGEX: () => COLOR_TAG_REGEX,
   OS_DIALOGUE_REGEX: () => OS_DIALOGUE_REGEX,
   PARENTHETICAL_REGEX: () => PARENTHETICAL_REGEX,
   SCENE_REGEX: () => SCENE_REGEX,
@@ -19014,8 +19015,9 @@ var DocxExporter = class {
     let previousType = "ACTION";
     for (let lineText of lines) {
       const trimmed = lineText.trim();
-      if (!trimmed) {
-        paragraphs.push(new Paragraph({}));
+      if (!trimmed || COLOR_TAG_REGEX.test(trimmed)) {
+        if (!trimmed)
+          paragraphs.push(new Paragraph({}));
         previousType = "ACTION";
         continue;
       }
@@ -19378,10 +19380,18 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
           currentGrid = container.createDiv({ cls: "storyboard-grid" });
         }
         let summary = "";
+        let cardColor = "none";
         for (let i = 1; i < block.contentLines.length; i++) {
           const sLine = block.contentLines[i].trim();
+          const colorMatch = sLine.match(COLOR_TAG_REGEX);
+          if (colorMatch) {
+            cardColor = colorMatch[1].toLowerCase();
+            if (cardColor === "\u65E0" || cardColor === "\u7121")
+              cardColor = "none";
+            continue;
+          }
           if (sLine && !sLine.startsWith("#")) {
-            const clean = sLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, "").trim();
+            const clean = sLine.replace(/^[@.((（].+?[)）:]?|[:：]|\[\[.*?\]\]/g, "").trim();
             summary += (summary ? " " : "") + clean;
           }
           if (summary.length >= summaryLength)
@@ -19389,8 +19399,37 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
         }
         if (summary.length > summaryLength)
           summary = summary.substring(0, summaryLength) + "...";
-        const cardEl = currentGrid.createDiv({ cls: "storyboard-card" });
+        const cardEl = currentGrid.createDiv({ cls: `storyboard-card storyboard-card-color-${cardColor}` });
         cardEl.setAttribute("draggable", "true");
+        const dotEl = cardEl.createDiv({ cls: "storyboard-card-color-dot" });
+        dotEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          container.querySelectorAll(".storyboard-color-picker").forEach((el) => el.remove());
+          const picker = container.createDiv({ cls: "storyboard-color-picker" });
+          const rect = dotEl.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
+          picker.style.top = `${rect.bottom - containerRect.top + 10}px`;
+          picker.style.left = `${rect.left - containerRect.left - 80}px`;
+          const colors = ["none", "red", "blue", "green", "yellow", "purple"];
+          colors.forEach((c) => {
+            const opt = picker.createDiv({
+              cls: `color-option color-option-${c} ${cardColor === c ? "is-selected" : ""}`,
+              attr: { title: c === "none" ? "Clear Color" : c.toUpperCase() }
+            });
+            opt.addEventListener("click", async (ev) => {
+              ev.stopPropagation();
+              await this.updateBlockColor(blocks, blockIdx, c);
+              picker.remove();
+            });
+          });
+          const closeHandler = (ev) => {
+            if (!picker.contains(ev.target)) {
+              picker.remove();
+              document.removeEventListener("mousedown", closeHandler);
+            }
+          };
+          document.addEventListener("mousedown", closeHandler);
+        });
         cardEl.createDiv({ text: block.title, cls: "storyboard-card-title" });
         if (summary) {
           cardEl.createDiv({ text: summary, cls: "storyboard-card-summary" });
@@ -19479,6 +19518,20 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
       }, 50);
     }
   }
+  async updateBlockColor(blocks, blockIdx, color) {
+    const block = blocks[blockIdx];
+    block.contentLines = block.contentLines.filter((l) => !COLOR_TAG_REGEX.test(l.trim()));
+    if (color !== "none") {
+      block.contentLines.splice(1, 0, `[[color: ${color}]]`);
+    }
+    const newContent = blocks.map((b) => b.contentLines.join("\n")).join("\n");
+    if (this.file) {
+      await this.app.vault.modify(this.file, newContent);
+      setTimeout(() => {
+        this.updateView();
+      }, 50);
+    }
+  }
 };
 
 // main.ts
@@ -19491,6 +19544,7 @@ var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
 var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
+var COLOR_TAG_REGEX = /^\[\[color:\s*(red|blue|green|yellow|purple|none|无|無)\]\]$/i;
 var CSS_CLASSES = {
   SCENE: "script-scene",
   CHARACTER: "script-character",
@@ -19601,7 +19655,7 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
         el.empty();
         sourceLines.forEach((lineText) => {
           const trimmedLine = lineText.trim();
-          if (!trimmedLine) {
+          if (!trimmedLine || COLOR_TAG_REGEX.test(trimmedLine)) {
             globalPreviousType = "ACTION";
             return;
           }
@@ -19866,6 +19920,12 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
               }
             }
             if (!trimmed) {
+              currentType = "EMPTY";
+            } else if (COLOR_TAG_REGEX.test(trimmed)) {
+              if (!isCursorOnLine) {
+                lpClass = LP_CLASSES.SYMBOL;
+                shouldHideMarker = true;
+              }
               currentType = "EMPTY";
             } else if (SCENE_REGEX.test(text)) {
               lpClass = LP_CLASSES.SCENE;

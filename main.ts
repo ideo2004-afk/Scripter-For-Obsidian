@@ -17,6 +17,7 @@ export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
 export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
+export const COLOR_TAG_REGEX = /^\[\[color:\s*(red|blue|green|yellow|purple|none|无|無)\]\]$/i;
 
 // CSS Classes (Reading Mode / PDF)
 const CSS_CLASSES = {
@@ -172,7 +173,7 @@ export default class ScriptEditorPlugin extends Plugin {
 
                 sourceLines.forEach((lineText: string) => {
                     const trimmedLine = lineText.trim();
-                    if (!trimmedLine) {
+                    if (!trimmedLine || COLOR_TAG_REGEX.test(trimmedLine)) {
                         globalPreviousType = 'ACTION';
                         return;
                     }
@@ -496,7 +497,14 @@ export default class ScriptEditorPlugin extends Plugin {
                             }
                         }
 
-                        if (!trimmed) {
+                        if (!trimmed) { // Empty lines
+                            currentType = 'EMPTY';
+                        }
+                        else if (COLOR_TAG_REGEX.test(trimmed)) { // Color tags
+                            if (!isCursorOnLine) {
+                                lpClass = LP_CLASSES.SYMBOL; // This will trigger display: none via our CSS
+                                shouldHideMarker = true;
+                            }
                             currentType = 'EMPTY';
                         }
                         else if (SCENE_REGEX.test(text)) {

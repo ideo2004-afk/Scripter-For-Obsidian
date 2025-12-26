@@ -1,5 +1,5 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownView } from "obsidian";
-import { SCENE_REGEX } from "./main";
+import { ItemView, WorkspaceLeaf, TFile, MarkdownView, Menu } from "obsidian";
+import { SCENE_REGEX, COLOR_TAG_REGEX } from "./main";
 
 export const STORYBOARD_VIEW_TYPE = "script-editor-storyboard-view";
 
@@ -143,18 +143,67 @@ export class StoryBoardView extends ItemView {
                 }
 
                 let summary = "";
+                let cardColor = "none";
                 for (let i = 1; i < block.contentLines.length; i++) {
                     const sLine = block.contentLines[i].trim();
+                    const colorMatch = sLine.match(COLOR_TAG_REGEX);
+                    if (colorMatch) {
+                        cardColor = colorMatch[1].toLowerCase();
+                        if (cardColor === "无" || cardColor === "無") cardColor = "none";
+                        continue;
+                    }
                     if (sLine && !sLine.startsWith('#')) {
-                        const clean = sLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, '').trim();
+                        // Clean up script markers and Fountain notes [[...]]
+                        const clean = sLine.replace(/^[@.((（].+?[)）:]?|[:：]|\[\[.*?\]\]/g, '').trim();
                         summary += (summary ? " " : "") + clean;
                     }
                     if (summary.length >= summaryLength) break;
                 }
                 if (summary.length > summaryLength) summary = summary.substring(0, summaryLength) + "...";
 
-                const cardEl = currentGrid.createDiv({ cls: 'storyboard-card' });
+                const cardEl = currentGrid.createDiv({ cls: `storyboard-card storyboard-card-color-${cardColor}` });
                 cardEl.setAttribute('draggable', 'true');
+
+                // Color Dot & Visual Picker
+                const dotEl = cardEl.createDiv({ cls: 'storyboard-card-color-dot' });
+                dotEl.addEventListener('click', (e: MouseEvent) => {
+                    e.stopPropagation();
+
+                    // Remove any existing pickers
+                    container.querySelectorAll('.storyboard-color-picker').forEach(el => el.remove());
+
+                    const picker = container.createDiv({ cls: 'storyboard-color-picker' });
+                    const rect = dotEl.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+
+                    // Position the picker near the dot
+                    picker.style.top = `${rect.bottom - containerRect.top + 10}px`;
+                    picker.style.left = `${rect.left - containerRect.left - 80}px`;
+
+                    const colors = ['none', 'red', 'blue', 'green', 'yellow', 'purple'];
+                    colors.forEach(c => {
+                        const opt = picker.createDiv({
+                            cls: `color-option color-option-${c} ${cardColor === c ? 'is-selected' : ''}`,
+                            attr: { title: c === 'none' ? 'Clear Color' : c.toUpperCase() }
+                        });
+
+                        opt.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            await this.updateBlockColor(blocks, blockIdx, c);
+                            picker.remove();
+                        });
+                    });
+
+                    // Auto-close picker when clicking elsewhere
+                    const closeHandler = (ev: MouseEvent) => {
+                        if (!picker.contains(ev.target as Node)) {
+                            picker.remove();
+                            document.removeEventListener('mousedown', closeHandler);
+                        }
+                    };
+                    document.addEventListener('mousedown', closeHandler);
+                });
+
                 cardEl.createDiv({ text: block.title, cls: 'storyboard-card-title' });
                 if (summary) {
                     cardEl.createDiv({ text: summary, cls: 'storyboard-card-summary' });
@@ -255,6 +304,28 @@ export class StoryBoardView extends ItemView {
 
         // Reconstruct file content
         const newContent = tempBlocks.map(b => b.contentLines.join('\n')).join('\n');
+
+        if (this.file) {
+            await this.app.vault.modify(this.file, newContent);
+            setTimeout(() => {
+                this.updateView();
+            }, 50);
+        }
+    }
+    private async updateBlockColor(blocks: any[], blockIdx: number, color: string) {
+        const block = blocks[blockIdx];
+
+        // Remove existing color tags
+        block.contentLines = block.contentLines.filter((l: string) => !COLOR_TAG_REGEX.test(l.trim()));
+
+        // Insert new color tag if not "none"
+        if (color !== 'none') {
+            // Insert after the scene heading (index 0)
+            block.contentLines.splice(1, 0, `[[color: ${color}]]`);
+        }
+
+        // Reconstruct file content
+        const newContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
 
         if (this.file) {
             await this.app.vault.modify(this.file, newContent);
