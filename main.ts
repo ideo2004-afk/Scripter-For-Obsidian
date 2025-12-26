@@ -91,14 +91,6 @@ export default class ScriptEditorPlugin extends Plugin {
         this.addRibbonIcon('scroll-text', 'New script', () => {
             this.createNewScript();
         });
-        this.addRibbonIcon('layout-grid', 'Story board', () => {
-            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-            if (view && this.isScript(view.file)) {
-                this.openStoryBoard(view.leaf, view.file!);
-            } else {
-                new Notice("Please open a script file first.");
-            }
-        });
 
         this.addCommand({
             id: 'create-new-script',
@@ -338,14 +330,25 @@ export default class ScriptEditorPlugin extends Plugin {
         this.registerEvent(
             this.app.workspace.on('file-open', (file) => {
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-                if (view && this.isScript(file)) {
-                    // Safety check: Avoid duplicate buttons by checking for our custom class
+                if (view) {
                     const headerActions = view.containerEl.querySelector('.view-actions');
-                    if (headerActions && !headerActions.querySelector('.script-editor-storyboard-action')) {
-                        const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
-                            this.openStoryBoard(view.leaf, file!);
-                        });
-                        actionBtn.addClass('script-editor-storyboard-action');
+                    const existingBtn = headerActions?.querySelector('.script-editor-storyboard-action');
+
+                    if (this.isScript(file)) {
+                        // Show or create if script
+                        if (!existingBtn && headerActions) {
+                            const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
+                                this.openStoryBoard(view.leaf, file!);
+                            });
+                            actionBtn.addClass('script-editor-storyboard-action');
+                        } else if (existingBtn) {
+                            (existingBtn as HTMLElement).style.display = '';
+                        }
+                    } else {
+                        // Hide if not script
+                        if (existingBtn) {
+                            (existingBtn as HTMLElement).style.display = 'none';
+                        }
                     }
                 }
                 this.refreshSceneView(false);
@@ -750,18 +753,15 @@ class ScriptEditorSettingTab extends PluginSettingTab {
 
     display(): void {
         const { containerEl } = this;
-        const container = this.containerEl.children[1] as HTMLElement;
-        const scrollPos = container.scrollTop;
-        container.empty();
-        container.addClass('script-editor-storyboard-container');
+        containerEl.empty();
 
         new Setting(containerEl)
             .setName('Usage guide')
             .setHeading();
 
         new Setting(containerEl)
-            .setName('Scene preview summary length')
-            .setDesc('Number of characters to show as a preview for each scene in the sidebar.')
+            .setName('Story Board summary length')
+            .setDesc('Number of characters to show as a preview for each scene in the Story Board cards.')
             .addText(text => text
                 .setPlaceholder('50')
                 .setValue(this.plugin.settings.summaryLength.toString())
@@ -770,7 +770,7 @@ class ScriptEditorSettingTab extends PluginSettingTab {
                     if (!isNaN(num) && num >= 0) {
                         this.plugin.settings.summaryLength = num;
                         await this.plugin.saveSettings();
-                        this.plugin.refreshSceneView();
+                        this.plugin.refreshStoryBoard(true);
                     }
                 }));
 

@@ -19192,25 +19192,10 @@ var SceneView = class extends import_obsidian.ItemView {
     lines.forEach((line, index) => {
       const trimmed = line.trim();
       if (SCENE_REGEX.test(trimmed)) {
-        let summary = "";
-        let scanIdx = index + 1;
-        while (summary.length < summaryLength && scanIdx < lines.length) {
-          const scanLine = lines[scanIdx].trim();
-          if (scanLine && !SCENE_REGEX.test(scanLine) && !scanLine.startsWith("#")) {
-            const clean = scanLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, "").trim();
-            summary += (summary ? " " : "") + clean;
-          }
-          if (SCENE_REGEX.test(scanLine) || scanLine.startsWith("#"))
-            break;
-          scanIdx++;
-        }
-        if (summary.length > summaryLength)
-          summary = summary.substring(0, summaryLength) + "...";
         items.push({
           line: index,
           text: trimmed,
-          type: "scene",
-          summary
+          type: "scene"
         });
       }
     });
@@ -19251,12 +19236,6 @@ var SceneView = class extends import_obsidian.ItemView {
         text: item.text,
         cls: "script-editor-scene-link"
       });
-      if (item.type === "scene" && item.summary) {
-        contentContainer.createDiv({
-          text: item.summary,
-          cls: "script-editor-scene-summary"
-        });
-      }
       itemEl.onClickEvent((e) => {
         e.preventDefault();
         this.navToLine(file, item.line);
@@ -19303,12 +19282,45 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
     this.file = file;
     await this.updateView();
   }
-  async onOpen() {
+  async setState(state2, result) {
+    if (state2.file) {
+      const file = this.app.vault.getAbstractFileByPath(state2.file);
+      if (file instanceof import_obsidian2.TFile) {
+        this.file = file;
+      }
+    }
+    await super.setState(state2, result);
     await this.updateView();
+  }
+  async onOpen() {
+    this.addAction("pencil", "Live View", async () => {
+      if (this.file) {
+        await this.leaf.setViewState({
+          type: "markdown",
+          state: {
+            file: this.file.path,
+            mode: "source"
+          }
+        });
+      }
+    });
+    this.addAction("book-open", "Reading Mode", async () => {
+      if (this.file) {
+        await this.leaf.setViewState({
+          type: "markdown",
+          state: {
+            file: this.file.path,
+            mode: "preview"
+          }
+        });
+      }
+    });
   }
   async updateView() {
     var _a, _b;
-    const container = this.containerEl.children[1];
+    const container = this.contentEl;
+    if (!container)
+      return;
     const scrollPos = container.scrollTop;
     container.empty();
     container.addClass("script-editor-storyboard-container");
@@ -19318,43 +19330,118 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
     }
     const headerEl = container.createDiv({ cls: "storyboard-header" });
     headerEl.createEl("h2", { text: this.file.basename });
-    const closeBtn = headerEl.createEl("button", { text: "Back to Editor", cls: "storyboard-back-btn" });
-    closeBtn.onClickEvent(async () => {
-      var _a2;
-      await this.leaf.setViewState({
-        type: "markdown",
-        state: { file: (_a2 = this.file) == null ? void 0 : _a2.path }
-      });
-    });
-    const gridEl = container.createDiv({ cls: "storyboard-grid" });
     const content = await this.app.vault.read(this.file);
     const lines = content.split("\n");
     const settings = (_a = this.app.plugins.getPlugin("script-editor")) == null ? void 0 : _a.settings;
     const summaryLength = (_b = settings == null ? void 0 : settings.summaryLength) != null ? _b : 50;
+    const blocks = [];
+    let currentBlock = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: "preamble",
+      title: "",
+      contentLines: [],
+      originalLine: 0
+    };
+    blocks.push(currentBlock);
     lines.forEach((line, index) => {
       const trimmed = line.trim();
-      if (SCENE_REGEX.test(trimmed)) {
+      if (trimmed.startsWith("## ")) {
+        currentBlock = {
+          id: Math.random().toString(36).substr(2, 9),
+          type: "h2",
+          title: trimmed.replace(/^##\s+/, ""),
+          contentLines: [line],
+          originalLine: index
+        };
+        blocks.push(currentBlock);
+      } else if (SCENE_REGEX.test(trimmed)) {
+        currentBlock = {
+          id: Math.random().toString(36).substr(2, 9),
+          type: "scene",
+          title: trimmed,
+          contentLines: [line],
+          originalLine: index
+        };
+        blocks.push(currentBlock);
+      } else {
+        currentBlock.contentLines.push(line);
+      }
+    });
+    let currentGrid = null;
+    blocks.forEach((block, blockIdx) => {
+      if (block.type === "h2") {
+        const h2Div = container.createDiv({ cls: "storyboard-h2-section" });
+        h2Div.createEl("h3", { text: block.title, cls: "storyboard-h2-title" });
+        currentGrid = h2Div.createDiv({ cls: "storyboard-grid" });
+      } else if (block.type === "scene") {
+        if (!currentGrid) {
+          currentGrid = container.createDiv({ cls: "storyboard-grid" });
+        }
         let summary = "";
-        let scanIdx = index + 1;
-        while (summary.length < summaryLength && scanIdx < lines.length) {
-          const scanLine = lines[scanIdx].trim();
-          if (scanLine && !SCENE_REGEX.test(scanLine) && !scanLine.startsWith("#")) {
-            const clean = scanLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, "").trim();
+        for (let i = 1; i < block.contentLines.length; i++) {
+          const sLine = block.contentLines[i].trim();
+          if (sLine && !sLine.startsWith("#")) {
+            const clean = sLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, "").trim();
             summary += (summary ? " " : "") + clean;
           }
-          if (SCENE_REGEX.test(scanLine) || scanLine.startsWith("#"))
+          if (summary.length >= summaryLength)
             break;
-          scanIdx++;
         }
         if (summary.length > summaryLength)
           summary = summary.substring(0, summaryLength) + "...";
-        const cardEl = gridEl.createDiv({ cls: "storyboard-card" });
-        cardEl.createDiv({ text: trimmed, cls: "storyboard-card-title" });
+        const cardEl = currentGrid.createDiv({ cls: "storyboard-card" });
+        cardEl.setAttribute("draggable", "true");
+        cardEl.createDiv({ text: block.title, cls: "storyboard-card-title" });
         if (summary) {
           cardEl.createDiv({ text: summary, cls: "storyboard-card-summary" });
         }
+        cardEl.addEventListener("dragstart", (e) => {
+          var _a2;
+          (_a2 = e.dataTransfer) == null ? void 0 : _a2.setData("text/plain", blockIdx.toString());
+          cardEl.addClass("is-dragging");
+        });
+        cardEl.addEventListener("dragend", () => {
+          cardEl.removeClass("is-dragging");
+          container.querySelectorAll(".storyboard-card").forEach((el) => {
+            el.removeClass("drag-over-left", "drag-over-right");
+          });
+        });
+        cardEl.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          const dragEvent = e;
+          const rect = cardEl.getBoundingClientRect();
+          const midX = rect.left + rect.width / 2;
+          cardEl.removeClass("drag-over-left", "drag-over-right");
+          if (dragEvent.clientX < midX) {
+            cardEl.addClass("drag-over-left");
+          } else {
+            cardEl.addClass("drag-over-right");
+          }
+        });
+        cardEl.addEventListener("dragleave", () => {
+          cardEl.removeClass("drag-over-left", "drag-over-right");
+        });
+        cardEl.addEventListener("drop", async (e) => {
+          var _a2;
+          e.preventDefault();
+          const fromIdx = parseInt(((_a2 = e.dataTransfer) == null ? void 0 : _a2.getData("text/plain")) || "-1");
+          const rect = cardEl.getBoundingClientRect();
+          const midX = rect.left + rect.width / 2;
+          const dropOnRight = e.clientX > midX;
+          let toIdx = blockIdx;
+          if (dropOnRight)
+            toIdx++;
+          if (fromIdx !== -1) {
+            let adjustedTo = toIdx;
+            if (fromIdx < toIdx)
+              adjustedTo--;
+            if (fromIdx !== adjustedTo) {
+              await this.moveBlock(blocks, fromIdx, toIdx);
+            }
+          }
+        });
         cardEl.onClickEvent(() => {
-          this.navToLine(index);
+          this.navToLine(block.originalLine);
         });
       }
     });
@@ -19374,6 +19461,22 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
       view.editor.focus();
       const linePos = view.editor.getCursor();
       view.editor.scrollIntoView({ from: linePos, to: linePos }, true);
+    }
+  }
+  async moveBlock(blocks, fromIdx, toIdx) {
+    const movedBlock = blocks[fromIdx];
+    const tempBlocks = [...blocks];
+    tempBlocks.splice(fromIdx, 1);
+    let adjustedTo = toIdx;
+    if (fromIdx < toIdx)
+      adjustedTo--;
+    tempBlocks.splice(adjustedTo, 0, movedBlock);
+    const newContent = tempBlocks.map((b) => b.contentLines.join("\n")).join("\n");
+    if (this.file) {
+      await this.app.vault.modify(this.file, newContent);
+      setTimeout(() => {
+        this.updateView();
+      }, 50);
     }
   }
 };
@@ -19432,14 +19535,6 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
     });
     this.addRibbonIcon("scroll-text", "New script", () => {
       this.createNewScript();
-    });
-    this.addRibbonIcon("layout-grid", "Story board", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
-      if (view && this.isScript(view.file)) {
-        this.openStoryBoard(view.leaf, view.file);
-      } else {
-        new import_obsidian3.Notice("Please open a script file first.");
-      }
     });
     this.addCommand({
       id: "create-new-script",
@@ -19630,13 +19725,22 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
         const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
-        if (view && this.isScript(file)) {
+        if (view) {
           const headerActions = view.containerEl.querySelector(".view-actions");
-          if (headerActions && !headerActions.querySelector(".script-editor-storyboard-action")) {
-            const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
-              this.openStoryBoard(view.leaf, file);
-            });
-            actionBtn.addClass("script-editor-storyboard-action");
+          const existingBtn = headerActions == null ? void 0 : headerActions.querySelector(".script-editor-storyboard-action");
+          if (this.isScript(file)) {
+            if (!existingBtn && headerActions) {
+              const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
+                this.openStoryBoard(view.leaf, file);
+              });
+              actionBtn.addClass("script-editor-storyboard-action");
+            } else if (existingBtn) {
+              existingBtn.style.display = "";
+            }
+          } else {
+            if (existingBtn) {
+              existingBtn.style.display = "none";
+            }
           }
         }
         this.refreshSceneView(false);
@@ -19974,17 +20078,14 @@ var ScriptEditorSettingTab = class extends import_obsidian3.PluginSettingTab {
   }
   display() {
     const { containerEl } = this;
-    const container = this.containerEl.children[1];
-    const scrollPos = container.scrollTop;
-    container.empty();
-    container.addClass("script-editor-storyboard-container");
+    containerEl.empty();
     new import_obsidian3.Setting(containerEl).setName("Usage guide").setHeading();
-    new import_obsidian3.Setting(containerEl).setName("Scene preview summary length").setDesc("Number of characters to show as a preview for each scene in the sidebar.").addText((text) => text.setPlaceholder("50").setValue(this.plugin.settings.summaryLength.toString()).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Story Board summary length").setDesc("Number of characters to show as a preview for each scene in the Story Board cards.").addText((text) => text.setPlaceholder("50").setValue(this.plugin.settings.summaryLength.toString()).onChange(async (value) => {
       const num = parseInt(value);
       if (!isNaN(num) && num >= 0) {
         this.plugin.settings.summaryLength = num;
         await this.plugin.saveSettings();
-        this.plugin.refreshSceneView();
+        this.plugin.refreshStoryBoard(true);
       }
     }));
     new import_obsidian3.Setting(containerEl).setName("1. Basic setup").setDesc("How to activate formatting for a note.").setHeading();

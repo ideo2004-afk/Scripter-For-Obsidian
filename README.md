@@ -1,6 +1,11 @@
-# Script Editor v1.5.0
+# Script Editor v1.6.0
 
 Script Editor is a Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, professional DOCX export, and integrated Story Board/Outline tools.
+
+---
+
+## 🆕 New in v1.6.0: Interactive Story Board
+The Story Board now supports **Drag & Drop** reordering! You can now visually rearrange your script's structure with precise insertion indicators.
 
 ---
 
@@ -58,16 +63,17 @@ Standard uppercase transitions ending in `TO:` or start/end keywords. They will 
 
 ### 🆕 Fast Script Creation (快速建立劇本)
 Easily create new script files pre-configured with the correct metadata (`cssclasses: fountain`).
-- **Ribbon Icon**: Click the "Scroll Text" icon on the left sidebar.
 - **Context Menu**: Right-click on any folder and select **New script**.
 - **Command Palette**: Search for `Create new script`.
 
 ### 🗂️ Story Board Mode (故事板/卡片模式)
-A visual grid view of your screenplay's scenes.
-- **Access**: Click the "Grid" icon (⊞) in the view header or left ribbon.
-- **Grid Layout**: Displays 5 cards per row with titles and scene summaries.
+A visual grid view of your screenplay's scenes with full drag-and-drop support.
+- **Access**: Click the "Grid" icon (⊞) in the view header.
+- **Drag & Drop Reordering**: Rearrange scenes by dragging cards between positions. A blue insertion line guides you for precise placement.
+- **Act Grouping**: Scenes are automatically grouped under `##` (H2) headings (Acts).
+- **Responsive Grid**: Layout adapts automatically to your window width.
 - **Quick Navigation**: Click any card to instantly jump to that scene in the editor.
-- **Auto-Sync**: Background content changes automaticallly refresh the board.
+- **Mode Switching**: Built-in header icons (✎ Pencil / 📖 Book) for fast switching between Live Preview, Reading Mode, and Story Board.
 
 ### 📚 Scene Mode View (大綱模式)
 A dedicated structural view for your script.

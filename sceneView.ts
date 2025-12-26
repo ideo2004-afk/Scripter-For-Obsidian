@@ -92,26 +92,10 @@ export class SceneView extends ItemView {
         lines.forEach((line, index) => {
             const trimmed = line.trim();
             if (SCENE_REGEX.test(trimmed)) {
-                // Find summary: look ahead for the next X characters of non-empty text
-                let summary = "";
-                let scanIdx = index + 1;
-                while (summary.length < summaryLength && scanIdx < lines.length) {
-                    const scanLine = lines[scanIdx].trim();
-                    if (scanLine && !SCENE_REGEX.test(scanLine) && !scanLine.startsWith('#')) {
-                        // Clean up script markers for summary
-                        const clean = scanLine.replace(/^[@.((（].+?[)）:]?|[:：]/g, '').trim();
-                        summary += (summary ? " " : "") + clean;
-                    }
-                    if (SCENE_REGEX.test(scanLine) || scanLine.startsWith('#')) break;
-                    scanIdx++;
-                }
-                if (summary.length > summaryLength) summary = summary.substring(0, summaryLength) + "...";
-
                 items.push({
                     line: index,
                     text: trimmed,
-                    type: 'scene',
-                    summary: summary
+                    type: 'scene'
                 });
             }
         });
@@ -165,12 +149,6 @@ export class SceneView extends ItemView {
                 cls: 'script-editor-scene-link'
             });
 
-            if (item.type === 'scene' && (item as any).summary) {
-                contentContainer.createDiv({
-                    text: (item as any).summary,
-                    cls: 'script-editor-scene-summary'
-                });
-            }
 
             itemEl.onClickEvent((e) => {
                 e.preventDefault();
