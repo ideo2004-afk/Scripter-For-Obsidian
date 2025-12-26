@@ -3,6 +3,7 @@ import { DocxExporter } from './docxExporter';
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { SceneView, SCENE_VIEW_TYPE } from './sceneView';
+import { StoryBoardView, STORYBOARD_VIEW_TYPE } from './storyBoardView';
 
 // Script Symbols
 const SCRIPT_MARKERS = {
@@ -70,6 +71,10 @@ export default class ScriptEditorPlugin extends Plugin {
             SCENE_VIEW_TYPE,
             (leaf) => new SceneView(leaf)
         );
+        this.registerView(
+            STORYBOARD_VIEW_TYPE,
+            (leaf) => new StoryBoardView(leaf)
+        );
 
         // 2. Settings / Help Tab
         await this.loadSettings();
@@ -85,6 +90,14 @@ export default class ScriptEditorPlugin extends Plugin {
         // 2a. New Script Command & Ribbon
         this.addRibbonIcon('scroll-text', 'New script', () => {
             this.createNewScript();
+        });
+        this.addRibbonIcon('layout-grid', 'Story board', () => {
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view && this.isScript(view.file)) {
+                this.openStoryBoard(view.leaf, view.file!);
+            } else {
+                new Notice("Please open a script file first.");
+            }
         });
 
         this.addCommand({
@@ -110,6 +123,21 @@ export default class ScriptEditorPlugin extends Plugin {
                         }
                         return true;
                     }
+                }
+                return false;
+            }
+        });
+
+        this.addCommand({
+            id: 'open-story-board',
+            name: 'Open story board for current script',
+            checkCallback: (checking: boolean) => {
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && this.isScript(view.file)) {
+                    if (!checking) {
+                        this.openStoryBoard(view.leaf, view.file!);
+                    }
+                    return true;
                 }
                 return false;
             }
@@ -257,6 +285,18 @@ export default class ScriptEditorPlugin extends Plugin {
                 });
             })
         );
+        // 5a. Add Storyboard toggle to view header
+        this.registerEvent(
+            (this.app.workspace as any).on("view-actions-menu", (menu: Menu, view: any) => {
+                if (view instanceof MarkdownView && this.isScript(view.file)) {
+                    menu.addItem((item: MenuItem) => {
+                        item.setTitle("Open Story Board")
+                            .setIcon("layout-grid")
+                            .onClick(() => this.openStoryBoard(view.leaf, view.file!));
+                    });
+                }
+            })
+        );
 
         // 6. File Explorer Context Menu
         this.registerEvent(
@@ -296,10 +336,26 @@ export default class ScriptEditorPlugin extends Plugin {
         );
 
         this.registerEvent(
-            this.app.workspace.on('active-leaf-change', () => this.refreshSceneView(false))
+            this.app.workspace.on('file-open', (file) => {
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && this.isScript(file)) {
+                    // Safety check: Avoid duplicate buttons by checking for our custom class
+                    const headerActions = view.containerEl.querySelector('.view-actions');
+                    if (headerActions && !headerActions.querySelector('.script-editor-storyboard-action')) {
+                        const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
+                            this.openStoryBoard(view.leaf, file!);
+                        });
+                        actionBtn.addClass('script-editor-storyboard-action');
+                    }
+                }
+                this.refreshSceneView(false);
+            })
         );
         this.registerEvent(
-            this.app.metadataCache.on('changed', () => this.refreshSceneView(true))
+            this.app.metadataCache.on('changed', () => {
+                this.refreshSceneView(true);
+                this.refreshStoryBoard(true);
+            })
         );
 
         // 7. Auto-initialize Scene View in Sidebar
@@ -351,6 +407,41 @@ export default class ScriptEditorPlugin extends Plugin {
                 leaf.view.updateView();
             }
         });
+    }
+    refreshStoryBoard(force = false) {
+        const activeFile = this.app.workspace.getActiveFile();
+        const leaves = this.app.workspace.getLeavesOfType(STORYBOARD_VIEW_TYPE);
+
+        leaves.forEach(leaf => {
+            if (leaf.view instanceof StoryBoardView) {
+                // If it's a metadata change, only refresh if the file matches
+                if (force && leaf.view.file && activeFile?.path !== leaf.view.file.path) {
+                    return;
+                }
+                leaf.view.updateView();
+            }
+        });
+    }
+
+
+    async openStoryBoard(leaf: WorkspaceLeaf, file: TFile) {
+        await leaf.setViewState({
+            type: STORYBOARD_VIEW_TYPE,
+            active: true,
+            state: { file: file.path }
+        });
+        const view = leaf.view;
+        if (view instanceof StoryBoardView) {
+            await view.setFile(file);
+        }
+    }
+
+    isScript(file: TFile | null): boolean {
+        if (!file) return false;
+        const cache = this.app.metadataCache.getFileCache(file);
+        const cssClasses = cache?.frontmatter?.cssclasses;
+        const classesArray = Array.isArray(cssClasses) ? cssClasses : (typeof cssClasses === 'string' ? [cssClasses] : []);
+        return classesArray.includes('fountain') || classesArray.includes('script');
     }
 
     onunload() {
@@ -659,7 +750,10 @@ class ScriptEditorSettingTab extends PluginSettingTab {
 
     display(): void {
         const { containerEl } = this;
-        containerEl.empty();
+        const container = this.containerEl.children[1] as HTMLElement;
+        const scrollPos = container.scrollTop;
+        container.empty();
+        container.addClass('script-editor-storyboard-container');
 
         new Setting(containerEl)
             .setName('Usage guide')

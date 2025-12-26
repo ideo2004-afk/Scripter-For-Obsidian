@@ -1,6 +1,6 @@
-# Script Editor v1.3.8
+# Script Editor v1.5.0
 
-Script Editor is a Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, and professional DOCX export.
+Script Editor is a Fountain-compatible screenplay editor with CJK support (Chinese, Japanese, Korean), intelligent formatting detection, professional DOCX export, and integrated Story Board/Outline tools.
 
 ---
 
@@ -62,34 +62,41 @@ Easily create new script files pre-configured with the correct metadata (`csscla
 - **Context Menu**: Right-click on any folder and select **New script**.
 - **Command Palette**: Search for `Create new script`.
 
+### 🗂️ Story Board Mode (故事板/卡片模式)
+A visual grid view of your screenplay's scenes.
+- **Access**: Click the "Grid" icon (⊞) in the view header or left ribbon.
+- **Grid Layout**: Displays 5 cards per row with titles and scene summaries.
+- **Quick Navigation**: Click any card to instantly jump to that scene in the editor.
+- **Auto-Sync**: Background content changes automaticallly refresh the board.
+
+### 📚 Scene Mode View (大綱模式)
+A dedicated structural view for your script.
+- **Location**: Find the list icon in the **right side dock** (next to the Outline).
+- **H1-H2 Folding**: Collapse acts or sections to focus on specific parts.
+- **Scene Summaries**: Toggle and configure the length of scene previews in settings.
+
 ### 📄 DOCX Export (Word 匯出)
-The plugin features a high-fidelity Word export engine for industry-standard screenplay documents.
-- **Editor**: Right-click anywhere in the script -> **Export to .docx**.
-- **File Explorer**: Right-click on any script file -> **Export to .docx**.
-- **Command Palette**: `Scripter: Export current file to .docx`.
+Industry-standard screenplay documents.
+- **Editor/File Explorer**: Right-click -> **Export to .docx**.
 
 ### 🔢 Scene Renumbering (自動場次編號)
-Command: `Scripter: Renumber Scenes`
-- Scans your entire document.
-- Automatically adds or updates sequential numbers to all Scene Headings (e.g., `1. INT. ...`).
-
-### 📚 Scene Mode View (場景模式)
-- **Scene Mode View**: Dedicated sidebar outline for H1-H3 and Scene Headings. Find the list icon in the **right side dock** (next to the Outline).
+- **Command Palette**: `Scripter: Renumber Scenes`
+- Automatically updates sequential numbers to all Scene Headings (e.g., `01. INT. ...`).
 
 ---
 
 ## 📦 Installation
 
-To install this plugin, we recommend using **BRAT** for easy updates from GitHub, or installing manually.
+To install this plugin, we recommend using **BRAT** or manual installation.
 
 ### Manual Installation
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [Latest Release](https://github.com/ideo2004-afk/Scripter-For-Obsidian/releases/latest).
-2. Create a folder named `scripter-for-obsidian` in your vault's `.obsidian/plugins/` directory.
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [Latest Release](https://github.com/ideo2004-afk/script-editor-obsidian/releases/latest).
+2. Create a folder named `script-editor` in your vault's `.obsidian/plugins/` directory.
 3. Copy the downloaded files into that folder.
 4. Reload Obsidian.
 
 ## 🎨 CSS Customization
-The plugin uses `styles.css` for all formatting. You can tweak properties like margins or fonts if you need a specific look (e.g., Courier Prime).
+The plugin uses `styles.css` for all formatting. You can tweak properties in the `Story Board Mode` or `Scene Mode` sections to customize your workspace.
 
 ## Support
 
