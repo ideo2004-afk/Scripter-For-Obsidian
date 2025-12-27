@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownView, Menu } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, MarkdownView, Menu, setIcon } from "obsidian";
 import { SCENE_REGEX, COLOR_TAG_REGEX } from "./main";
 
 export const STORYBOARD_VIEW_TYPE = "script-editor-storyboard-view";
@@ -77,12 +77,20 @@ export class StoryBoardView extends ItemView {
             return;
         }
 
-        const headerEl = container.createDiv({ cls: 'storyboard-header' });
-        headerEl.createEl('h2', { text: this.file.basename });
-
         // --- Block Parsing Logic ---
         const content = await this.app.vault.read(this.file);
         const lines = content.split('\n');
+
+        // Find H1 if exists
+        let displayTitle = this.file.basename;
+        const h1Line = lines.find(line => line.trim().startsWith('# '));
+        if (h1Line) {
+            displayTitle = h1Line.trim().replace(/^#\s+/, '');
+        }
+
+        const headerEl = container.createDiv({ cls: 'storyboard-header' });
+        headerEl.createEl('h2', { text: displayTitle });
+
         const settings = (this.app as any).plugins.getPlugin('script-editor')?.settings;
         const summaryLength = settings?.summaryLength ?? 50;
 
@@ -173,12 +181,12 @@ export class StoryBoardView extends ItemView {
                     container.querySelectorAll('.storyboard-color-picker').forEach(el => el.remove());
 
                     const picker = container.createDiv({ cls: 'storyboard-color-picker' });
-                    const rect = dotEl.getBoundingClientRect();
+                    const rect = cardEl.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
 
-                    // Position the picker near the dot
-                    picker.style.top = `${rect.bottom - containerRect.top + 10}px`;
-                    picker.style.left = `${rect.left - containerRect.left - 80}px`;
+                    // Position the picker below the top-left corner
+                    picker.style.top = `${rect.top - containerRect.top + 30}px`;
+                    picker.style.left = `${rect.left - containerRect.left + 5}px`;
 
                     const colors = ['none', 'red', 'blue', 'green', 'yellow', 'purple'];
                     colors.forEach(c => {
@@ -262,8 +270,61 @@ export class StoryBoardView extends ItemView {
                     }
                 });
 
-                cardEl.onClickEvent(() => {
-                    this.navToLine(block.originalLine);
+                // Left-click only: navigate to line
+                cardEl.addEventListener('click', (e: MouseEvent) => {
+                    if (e.button === 0) {
+                        this.navToLine(block.originalLine);
+                    }
+                });
+
+                // Context Menu trigger logic
+                const triggerMenu = (e: MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const menu = new Menu();
+
+                    menu.addItem((item) => {
+                        item.setTitle("Edit Scene")
+                            .setIcon("pencil")
+                            .onClick(() => this.openEditModal(blocks, blockIdx));
+                    });
+
+                    menu.addSeparator();
+
+                    menu.addItem((item) => {
+                        item.setTitle("New Scene")
+                            .setIcon("plus")
+                            .onClick(() => this.insertNewScene(blocks, blockIdx));
+                    });
+
+                    menu.addItem((item) => {
+                        item.setTitle("Duplicate Scene")
+                            .setIcon("copy")
+                            .onClick(() => this.duplicateScene(blocks, blockIdx));
+                    });
+
+                    menu.addSeparator();
+
+                    menu.addItem((item) => {
+                        item.setTitle("Delete Scene")
+                            .setIcon("trash-2")
+                            .onClick(() => this.confirmDeleteScene(blocks, blockIdx));
+                    });
+
+                    menu.showAtMouseEvent(e);
+                };
+
+                // Add menu button (visible on hover/mobile)
+                const menuBtn = cardEl.createDiv({ cls: 'storyboard-card-menu-btn' });
+                setIcon(menuBtn, 'menu');
+                menuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    triggerMenu(e);
+                });
+
+                // Standard right-click
+                cardEl.addEventListener('contextmenu', (e) => {
+                    triggerMenu(e);
                 });
             }
         });
@@ -333,5 +394,128 @@ export class StoryBoardView extends ItemView {
                 this.updateView();
             }, 50);
         }
+    }
+
+    // --- Scene Edit Modal ---
+    private openEditModal(blocks: any[], blockIdx: number) {
+        const block = blocks[blockIdx];
+        const container = this.contentEl;
+
+        // Create modal overlay
+        const overlay = container.createDiv({ cls: 'storyboard-modal-overlay' });
+        const modal = overlay.createDiv({ cls: 'storyboard-edit-modal' });
+
+        // Modal Header
+        const header = modal.createDiv({ cls: 'storyboard-modal-header' });
+        header.createEl('h3', { text: 'Edit Scene' });
+
+        // Body with two fields
+        const body = modal.createDiv({ cls: 'storyboard-modal-body' });
+
+        // Title Input (first line)
+        const titleInput = body.createEl('input', {
+            cls: 'storyboard-modal-title-input',
+            attr: { type: 'text', placeholder: 'Scene Heading (e.g. INT. LOCATION - DAY)' }
+        });
+        titleInput.value = block.contentLines[0] || '';
+        titleInput.focus();
+
+        // Content Textarea (remaining lines)
+        const textarea = body.createEl('textarea', { cls: 'storyboard-modal-textarea' });
+        textarea.value = block.contentLines.slice(1).join('\n');
+
+        // Footer with Save button
+        const footer = modal.createDiv({ cls: 'storyboard-modal-footer' });
+        const saveBtn = footer.createEl('button', { text: 'Save', cls: 'mod-cta' });
+        saveBtn.onclick = async () => {
+            // Combine title + content
+            block.contentLines = [titleInput.value, ...textarea.value.split('\n')];
+            const newContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
+            if (this.file) {
+                await this.app.vault.modify(this.file, newContent);
+                overlay.remove();
+                this.updateView();
+            }
+        };
+
+        const cancelBtn = footer.createEl('button', { text: 'Cancel' });
+        cancelBtn.onclick = () => overlay.remove();
+
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+    }
+
+    // --- Insert New Scene ---
+    private async insertNewScene(blocks: any[], afterIdx: number) {
+        const newBlock = {
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'scene',
+            title: 'EXT. ',
+            contentLines: ['EXT. ', ''],
+            originalLine: 0
+        };
+
+        blocks.splice(afterIdx + 1, 0, newBlock);
+        const newContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
+
+        if (this.file) {
+            await this.app.vault.modify(this.file, newContent);
+            this.updateView();
+        }
+    }
+
+    // --- Duplicate Scene ---
+    private async duplicateScene(blocks: any[], blockIdx: number) {
+        const original = blocks[blockIdx];
+        const duplicate = {
+            id: Math.random().toString(36).substr(2, 9),
+            type: original.type,
+            title: original.title,
+            contentLines: [...original.contentLines],
+            originalLine: 0
+        };
+
+        blocks.splice(blockIdx + 1, 0, duplicate);
+        const newContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
+
+        if (this.file) {
+            await this.app.vault.modify(this.file, newContent);
+            this.updateView();
+        }
+    }
+
+    // --- Delete Scene with Confirmation ---
+    private confirmDeleteScene(blocks: any[], blockIdx: number) {
+        const block = blocks[blockIdx];
+        const container = this.contentEl;
+
+        // Create confirmation overlay
+        const overlay = container.createDiv({ cls: 'storyboard-modal-overlay' });
+        const modal = overlay.createDiv({ cls: 'storyboard-confirm-modal' });
+
+        modal.createEl('p', { text: `Delete scene "${block.title}"?` });
+        modal.createEl('p', { text: 'This action cannot be undone.', cls: 'storyboard-confirm-warning' });
+
+        const footer = modal.createDiv({ cls: 'storyboard-modal-footer' });
+
+        const deleteBtn = footer.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+        deleteBtn.onclick = async () => {
+            blocks.splice(blockIdx, 1);
+            const newContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
+            if (this.file) {
+                await this.app.vault.modify(this.file, newContent);
+                overlay.remove();
+                this.updateView();
+            }
+        };
+
+        const cancelBtn = footer.createEl('button', { text: 'Cancel' });
+        cancelBtn.onclick = () => overlay.remove();
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
     }
 }
