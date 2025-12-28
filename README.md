@@ -80,6 +80,21 @@ Industry-standard screenplay documents.
 - **Command Palette**: `Scripter: Renumber Scenes`
 - Automatically updates sequential numbers for all Scene Headings (e.g., `01. INT. ...`).
 
+### Character Suggestion Menu
+
+Quickly insert character names with frequency-based autocomplete.
+
+- **Trigger**: Type `@` anywhere in your script.
+- **Smart Ranking**: Characters are ranked by how often they appear in your script.
+- **Automatic Detection**: Works with `@NAME`, `NAME:`, and ALL-CAPS formats.
+
+### Export Summary
+
+Export your script's structure to a separate Markdown file.
+
+- **Editor/File Explorer**: Right-click -> **Export summary**.
+- Outputs all H1, H2 headings and scene summaries to a new `.md` file.
+
 ### Right-click Function
 
 - In editing mode, the right-click menu provides common Syntax options and other functions.
