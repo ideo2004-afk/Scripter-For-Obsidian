@@ -24,6 +24,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // main.ts
 var main_exports = {};
 __export(main_exports, {
+  CHARACTER_CAPS_REGEX: () => CHARACTER_CAPS_REGEX,
   CHARACTER_COLON_REGEX: () => CHARACTER_COLON_REGEX,
   COLOR_TAG_REGEX: () => COLOR_TAG_REGEX,
   NOTE_REGEX: () => NOTE_REGEX,
@@ -19894,7 +19895,8 @@ var SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
 var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
+var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*$/;
+var CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
 var COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
 var SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
 var NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
@@ -20157,6 +20159,7 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
         });
       })
     );
+    this.registerEditorSuggest(new CharacterSuggest(this.app, this));
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
         const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
@@ -20411,11 +20414,10 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
     if (text.startsWith(SCRIPT_MARKERS.CHARACTER))
       return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: true, markerLength: 1, typeKey: "CHARACTER" };
     const hasColon = CHARACTER_COLON_REGEX.test(text);
-    const isAllCapsEng = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/.test(text);
+    const isAllCapsEng = CHARACTER_CAPS_REGEX.test(text);
     if (hasColon || isAllCapsEng) {
       return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: false, markerLength: 0, typeKey: "CHARACTER" };
     }
-    return null;
     return null;
   }
   renumberScenes(editor) {
@@ -20697,6 +20699,69 @@ var ScriptEditorSettingTab = class extends import_obsidian3.PluginSettingTab {
         style: "height: 40px;"
       }
     });
+  }
+};
+function extractCharacterNames(content, plugin) {
+  const charCounts = /* @__PURE__ */ new Map();
+  const lines = content.split("\n");
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.length > 50)
+      return;
+    const format = plugin.detectExplicitFormat(trimmed);
+    if (!format || format.typeKey !== "CHARACTER")
+      return;
+    let name = "";
+    if (trimmed.startsWith(SCRIPT_MARKERS.CHARACTER)) {
+      name = trimmed.substring(1).trim();
+    } else if (CHARACTER_COLON_REGEX.test(trimmed)) {
+      const match = trimmed.match(CHARACTER_COLON_REGEX);
+      if (match)
+        name = match[1].trim();
+    } else if (CHARACTER_CAPS_REGEX.test(trimmed)) {
+      name = trimmed.split("(")[0].trim();
+    }
+    name = name.replace(/[:：]+$/, "").trim();
+    if (name && name.length > 0) {
+      charCounts.set(name, (charCounts.get(name) || 0) + 1);
+    }
+  });
+  return charCounts;
+}
+var CharacterSuggest = class extends import_obsidian3.EditorSuggest {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+  onTrigger(cursor, editor, file) {
+    if (!this.plugin.isScript(file))
+      return null;
+    const line = editor.getLine(cursor.line);
+    const sub = line.substring(0, cursor.ch);
+    const match = sub.match(/@([^ ]*)$/);
+    if (match) {
+      return {
+        start: { line: cursor.line, ch: match.index },
+        end: { line: cursor.line, ch: cursor.ch },
+        query: match[1]
+      };
+    }
+    return null;
+  }
+  async getSuggestions(context) {
+    const content = await this.app.vault.read(context.file);
+    const charMap = extractCharacterNames(content, this.plugin);
+    const query = context.query.toLowerCase();
+    return Array.from(charMap.entries()).filter(([name]) => name.toLowerCase().includes(query)).sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, 8);
+  }
+  renderSuggestion(suggestion, el) {
+    el.createEl("div", { text: suggestion });
+  }
+  selectSuggestion(suggestion, event) {
+    const { context } = this;
+    if (context) {
+      context.editor.replaceRange(`@${suggestion}`, context.start, context.end);
+    }
   }
 };
 /*! Bundled license information:

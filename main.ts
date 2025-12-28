@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice, WorkspaceLeaf, editorLivePreviewField } from 'obsidian';
+import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice, WorkspaceLeaf, editorLivePreviewField, EditorSuggest, EditorPosition, EditorSuggestTriggerInfo, EditorSuggestContext } from 'obsidian';
 import { DocxExporter } from './docxExporter';
 import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
@@ -16,7 +16,8 @@ export const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.
 export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*(.*)$/;
+export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*$/;
+export const CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
 export const COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
 export const SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
 export const NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
@@ -370,6 +371,9 @@ export default class ScriptEditorPlugin extends Plugin {
             })
         );
 
+        // 2c. Register Character Suggest
+        this.registerEditorSuggest(new CharacterSuggest(this.app, this));
+
         this.registerEvent(
             this.app.workspace.on('file-open', (file) => {
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -677,17 +681,15 @@ export default class ScriptEditorPlugin extends Plugin {
         if (text.startsWith(SCRIPT_MARKERS.CHARACTER))
             return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: true, markerLength: 1, typeKey: 'CHARACTER' };
 
-        // 2. Ends with a colon (captured by regex)
+        // 2. Ends with a colon (standalone line, colon at end)
         const hasColon = CHARACTER_COLON_REGEX.test(text);
 
         // 3. Full English CAPS (Must contain at least one A-Z letter and no lowercase)
-        const isAllCapsEng = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/.test(text);
+        const isAllCapsEng = CHARACTER_CAPS_REGEX.test(text);
 
         if (hasColon || isAllCapsEng) {
             return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: false, markerLength: 0, typeKey: 'CHARACTER' };
         }
-
-        return null;
 
         return null;
     }
@@ -1049,5 +1051,100 @@ class ScriptEditorSettingTab extends PluginSettingTab {
                 style: 'height: 40px;'
             }
         });
+    }
+}
+
+/**
+ * Standalone helper to extract character names and frequencies from text.
+ * Reuses detectExplicitFormat for consistent detection logic.
+ */
+function extractCharacterNames(content: string, plugin: ScriptEditorPlugin): Map<string, number> {
+    const charCounts = new Map<string, number>();
+    const lines = content.split('\n');
+
+    lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.length > 50) return;
+
+        // Reuse the core detection logic
+        const format = plugin.detectExplicitFormat(trimmed);
+        if (!format || format.typeKey !== 'CHARACTER') return;
+
+        // Extract the character name based on the format
+        let name = "";
+        if (trimmed.startsWith(SCRIPT_MARKERS.CHARACTER)) {
+            // @NAME format: remove the @ and take Everything after it
+            name = trimmed.substring(1).trim();
+        } else if (CHARACTER_COLON_REGEX.test(trimmed)) {
+            // NAME: format: take the part before the colon
+            const match = trimmed.match(CHARACTER_COLON_REGEX);
+            if (match) name = match[1].trim();
+        } else if (CHARACTER_CAPS_REGEX.test(trimmed)) {
+            // ALL CAPS format: take the part before any parenthetical
+            name = trimmed.split('(')[0].trim();
+        }
+
+        // Strip trailing colons from all names (handles edge cases like @男人/妻子：)
+        name = name.replace(/[:：]+$/, '').trim();
+
+        if (name && name.length > 0) {
+            charCounts.set(name, (charCounts.get(name) || 0) + 1);
+        }
+
+    });
+
+    return charCounts;
+}
+
+
+
+class CharacterSuggest extends EditorSuggest<string> {
+    plugin: ScriptEditorPlugin;
+
+    constructor(app: App, plugin: ScriptEditorPlugin) {
+        super(app);
+        this.plugin = plugin;
+    }
+
+    onTrigger(cursor: EditorPosition, editor: Editor, file: TFile): EditorSuggestTriggerInfo | null {
+        // @ts-ignore - isScript is defined in the plugin class
+        if (!this.plugin.isScript(file)) return null;
+
+        const line = editor.getLine(cursor.line);
+        const sub = line.substring(0, cursor.ch);
+        const match = sub.match(/@([^ ]*)$/);
+
+        if (match) {
+            return {
+                start: { line: cursor.line, ch: match.index! },
+                end: { line: cursor.line, ch: cursor.ch },
+                query: match[1]
+            };
+        }
+        return null;
+    }
+
+    async getSuggestions(context: EditorSuggestContext): Promise<string[]> {
+        const content = await this.app.vault.read(context.file);
+        const charMap = extractCharacterNames(content, this.plugin);
+        const query = context.query.toLowerCase();
+
+
+        return Array.from(charMap.entries())
+            .filter(([name]) => name.toLowerCase().includes(query))
+            .sort((a, b) => b[1] - a[1]) // Frequency-based sorting
+            .map(([name]) => name)
+            .slice(0, 8); // Top 8 results
+    }
+
+    renderSuggestion(suggestion: string, el: HTMLElement): void {
+        el.createEl("div", { text: suggestion });
+    }
+
+    selectSuggestion(suggestion: string, event: MouseEvent | KeyboardEvent): void {
+        const { context } = this;
+        if (context) {
+            context.editor.replaceRange(`@${suggestion}`, context.start, context.end);
+        }
     }
 }
