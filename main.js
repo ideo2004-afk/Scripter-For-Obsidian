@@ -19222,7 +19222,7 @@ var SceneView = class extends import_obsidian.ItemView {
         const foldIcon = itemEl.createSpan({
           cls: `script-editor-fold-icon ${isFolded ? "is-collapsed" : ""}`
         });
-        foldIcon.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+        (0, import_obsidian.setIcon)(foldIcon, "chevron-down");
         foldIcon.onClickEvent((e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -19876,7 +19876,7 @@ ${transcript}`;
         }
       } else {
         new import_obsidian2.Notice("AI process finished but no summaries could be parsed. Check developer console.");
-        console.log("AI Response was:", aiText);
+        console.debug("AI Response was:", aiText);
       }
     } catch (error) {
       console.error("Gemini Bulk Error:", error);

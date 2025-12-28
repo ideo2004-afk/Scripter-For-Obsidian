@@ -787,7 +787,7 @@ ${transcript}`;
                 }
             } else {
                 new Notice("AI process finished but no summaries could be parsed. Check developer console.");
-                console.log("AI Response was:", aiText);
+                console.debug("AI Response was:", aiText);
             }
 
         } catch (error) {

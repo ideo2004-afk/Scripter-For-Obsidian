@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownView } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, MarkdownView, setIcon } from 'obsidian';
 import { SCENE_REGEX } from './main';
 
 export const SCENE_VIEW_TYPE = 'script-editor-scene-view';
@@ -126,7 +126,7 @@ export class SceneView extends ItemView {
                 const foldIcon = itemEl.createSpan({
                     cls: `script-editor-fold-icon ${isFolded ? 'is-collapsed' : ''}`
                 });
-                foldIcon.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+                setIcon(foldIcon, 'chevron-down');
 
                 foldIcon.onClickEvent((e) => {
                     e.preventDefault();
