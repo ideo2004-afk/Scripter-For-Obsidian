@@ -293,11 +293,6 @@ export default class ScriptEditorPlugin extends Plugin {
                             .onClick(() => this.renumberScenes(editor));
                     });
 
-                    subMenu.addItem((subItem: MenuItem) => {
-                        subItem.setTitle("Clear format").setIcon("eraser")
-                            .onClick(() => this.clearLinePrefix(editor));
-                    });
-
                     subMenu.addSeparator();
 
                     subMenu.addItem((subItem: MenuItem) => {
@@ -755,21 +750,7 @@ export default class ScriptEditorPlugin extends Plugin {
         }
     }
 
-    clearLinePrefix(editor: Editor) {
-        const cursor = editor.getCursor();
-        const lineContent = editor.getLine(cursor.line);
-        let newLineContent = lineContent;
-        for (const marker of Object.values(SCRIPT_MARKERS)) {
-            if (lineContent.trim().startsWith(marker)) {
-                const matchIndex = lineContent.indexOf(marker);
-                const before = lineContent.substring(0, matchIndex);
-                const after = lineContent.substring(matchIndex + marker.length);
-                newLineContent = before + after;
-                editor.setLine(cursor.line, newLineContent);
-                return;
-            }
-        }
-    }
+
 
     async exportFileToDocx(file: TFile) {
         try {
@@ -982,7 +963,7 @@ class ScriptEditorSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('AI Beat summary (Gemini 2.5 Flash)')
-            .setDesc('Enable AI-powered scene summarization and generation. Get your free API key from Google AI Studio.')
+            .setDesc('Get your API key from Google AI Studio.')
             .addText(text => text
                 .setPlaceholder('Enter your Gemini API key')
                 .setValue(this.plugin.settings.geminiApiKey)
@@ -992,58 +973,34 @@ class ScriptEditorSettingTab extends PluginSettingTab {
                 })
                 .inputEl.style.width = '350px');
 
-        // 1. Basic Setup
+        // Quick features
         new Setting(containerEl)
-            .setName('1. Basic setup')
-            .setDesc('How to activate formatting for a note.')
-            .setHeading();
-
-        const setupInfo = containerEl.createDiv();
-        setupInfo.createEl('p', { text: 'Add the following to your note\'s frontmatter (Properties) to enable screenplay mode:' });
-        setupInfo.createEl('pre', { text: '---\ncssclasses: fountain\n---' });
-        setupInfo.createEl('p', { text: 'Alternatively, you can use "cssclasses: script".' });
-
-        containerEl.createEl('br');
-
-        // 2. Quick creation & features
-        new Setting(containerEl)
-            .setName('2. Quick features')
+            .setName('Quick features')
             .setDesc('Automation and creation tools.')
             .setHeading();
 
         const featuresDiv = containerEl.createDiv();
-        featuresDiv.createEl('li', { text: '✨ Story Board Mode: Activate the grid icon in the right sidebar for a holistic view of your script structure.' });
-        featuresDiv.createEl('li', { text: '✨ AI Beat Summary: Instantly generate or update scene summaries using Gemini AI, either one-by-one or for the entire script.' });
-        featuresDiv.createEl('li', { text: 'New Script Button: Click the quill/scroll icon in the left ribbon to create a new screenplay.' });
+        featuresDiv.createEl('li', { text: 'New Script Button: Click the scroll icon in the left ribbon to create a new screenplay.' });
+        featuresDiv.createEl('li', { text: 'Story Board Mode: Activate the grid icon in the right sidebar for a holistic view of script structure.' });
+        featuresDiv.createEl('li', { text: 'AI Beat Summary: Instantly generate scene summaries using Gemini AI.' });
+        featuresDiv.createEl('li', { text: 'Character Quick Menu: Type @ to access frequently used character names.' });
         featuresDiv.createEl('li', { text: 'Renumber Scenes: Right-click in the editor to re-order your scene numbers automatically.' });
-        featuresDiv.createEl('li', { text: 'Professional Export: Right-click and choose "Export to .docx" for Hollywood-standard output.' });
 
-        containerEl.createEl('br');
-
-        // 3. Screenplay Syntax
+        // Screenplay Syntax
         new Setting(containerEl)
-            .setName('3. Screenplay syntax')
+            .setName('Screenplay syntax')
             .setDesc('Basic rules for Fountain-compatible formatting.')
             .setHeading();
 
         const syntaxDiv = containerEl.createDiv();
+        syntaxDiv.createEl('li', { text: 'Scene Heading: INT. / EXT. — Automatic bold & uppercase.' });
+        syntaxDiv.createEl('li', { text: 'Character: @NAME — Centered. "@" is hidden in preview.' });
+        syntaxDiv.createEl('li', { text: 'Dialogue: Text below Character — Automatically indented.' });
+        syntaxDiv.createEl('li', { text: 'Parenthetical: (emotion) / OS: / VO: — Centered & italic.' });
+        syntaxDiv.createEl('li', { text: 'Transition: CUT TO: / FADE IN — Right aligned.' });
 
-        const createRow = (title: string, syntax: string, desc: string) => {
-            const p = syntaxDiv.createEl('p');
-            p.createEl('strong', { text: title + ': ' });
-            p.createEl('code', { text: syntax });
-            p.createSpan({ text: ' — ' + desc });
-        };
 
-        createRow('Scene Heading', 'INT. / EXT.', 'Automatic bold & uppercase.');
-        createRow('Character', '@NAME', 'Centered. "@" is hidden in preview.');
-        createRow('Dialogue', 'Text below Character', 'Automatically indented.');
-        createRow('Parenthetical', '(emotion) / OS: / VO:', 'Centered & italic.');
-        createRow('Transition', 'CUT TO: / FADE IN', 'Right aligned.');
-
-        containerEl.createEl('br');
-
-        // 4. Support
+        // Support
         const supportDiv = containerEl.createEl('div', { attr: { style: 'margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 20px;' } });
         supportDiv.createEl('p', { text: 'If you enjoy using Script Editor, consider supporting its development!' });
         const link = supportDiv.createEl('a', { href: 'https://buymeacoffee.com/ideo2004c' });
