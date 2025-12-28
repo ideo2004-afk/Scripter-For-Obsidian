@@ -20752,7 +20752,7 @@ var CharacterSuggest = class extends import_obsidian3.EditorSuggest {
     const content = await this.app.vault.read(context.file);
     const charMap = extractCharacterNames(content, this.plugin);
     const query = context.query.toLowerCase();
-    return Array.from(charMap.entries()).filter(([name]) => name.toLowerCase().includes(query)).sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, 8);
+    return Array.from(charMap.entries()).filter(([name]) => name.toLowerCase().includes(query)).sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, 10);
   }
   renderSuggestion(suggestion, el) {
     el.createEl("div", { text: suggestion });

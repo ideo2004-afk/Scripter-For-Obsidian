@@ -1134,7 +1134,7 @@ class CharacterSuggest extends EditorSuggest<string> {
             .filter(([name]) => name.toLowerCase().includes(query))
             .sort((a, b) => b[1] - a[1]) // Frequency-based sorting
             .map(([name]) => name)
-            .slice(0, 8); // Top 8 results
+            .slice(0, 10); // Top 10 results
     }
 
     renderSuggestion(suggestion: string, el: HTMLElement): void {
