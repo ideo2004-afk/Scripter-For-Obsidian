@@ -93,14 +93,16 @@ export default class ScriptEditorPlugin extends Plugin {
         });
 
         // 2a. New Script Command & Ribbon
-        this.addRibbonIcon('scroll-text', 'New script', () => {
-            this.createNewScript();
+        this.addRibbonIcon('scroll-text', 'New script', async () => {
+            await this.createNewScript();
         });
 
         this.addCommand({
             id: 'create-new-script',
             name: 'Create new script',
-            callback: () => this.createNewScript()
+            callback: async () => {
+                await this.createNewScript();
+            }
         });
 
         // 2b. Export to Docx Command
@@ -116,7 +118,7 @@ export default class ScriptEditorPlugin extends Plugin {
 
                     if (classesArray.includes('fountain') || classesArray.includes('script')) {
                         if (!checking) {
-                            this.exportFileToDocx(view.file!);
+                            void this.exportFileToDocx(view.file!);
                         }
                         return true;
                     }
@@ -132,7 +134,7 @@ export default class ScriptEditorPlugin extends Plugin {
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && this.isScript(view.file)) {
                     if (!checking) {
-                        this.openStoryBoard(view.leaf, view.file!);
+                        void this.openStoryBoard(view.leaf, view.file!);
                     }
                     return true;
                 }
@@ -143,7 +145,9 @@ export default class ScriptEditorPlugin extends Plugin {
         this.addCommand({
             id: 'show-scene-mode',
             name: 'Show scene mode',
-            callback: () => this.activateView()
+            callback: async () => {
+                await this.activateView();
+            }
         });
 
         this.addCommand({
@@ -153,7 +157,7 @@ export default class ScriptEditorPlugin extends Plugin {
                 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && this.isScript(view.file)) {
                     if (!checking) {
-                        this.exportSummary(view.file!);
+                        void this.exportSummary(view.file!);
                     }
                     return true;
                 }
@@ -308,12 +312,16 @@ export default class ScriptEditorPlugin extends Plugin {
 
                     subMenu.addItem((subItem: MenuItem) => {
                         subItem.setTitle("Export to .docx").setIcon("file-output")
-                            .onClick(() => this.exportFileToDocx(view.file!));
+                            .onClick(() => {
+                                void this.exportFileToDocx(view.file!);
+                            });
                     });
 
                     subMenu.addItem((subItem: MenuItem) => {
                         subItem.setTitle("Export summary").setIcon("file-text")
-                            .onClick(() => this.exportSummary(view.file!));
+                            .onClick(() => {
+                                void this.exportSummary(view.file!);
+                            });
                     });
                 });
             })
@@ -325,7 +333,9 @@ export default class ScriptEditorPlugin extends Plugin {
                     menu.addItem((item: MenuItem) => {
                         item.setTitle("Open Story Board")
                             .setIcon("layout-grid")
-                            .onClick(() => this.openStoryBoard(view.leaf, view.file!));
+                            .onClick(() => {
+                                void this.openStoryBoard(view.leaf, view.file!);
+                            });
                     });
                 }
             })
@@ -391,7 +401,7 @@ export default class ScriptEditorPlugin extends Plugin {
                         // Show or create if script
                         if (!existingBtn && headerActions) {
                             const actionBtn = view.addAction("layout-grid", "Open Story Board", () => {
-                                this.openStoryBoard(view.leaf, file!);
+                                void this.openStoryBoard(view.leaf, file!);
                             });
                             actionBtn.addClass('script-editor-storyboard-action');
                         } else if (existingBtn) {
@@ -415,8 +425,8 @@ export default class ScriptEditorPlugin extends Plugin {
         );
 
         // 7. Auto-initialize Scene View in Sidebar
-        this.app.workspace.onLayoutReady(() => {
-            this.initSceneView();
+        this.app.workspace.onLayoutReady(async () => {
+            await this.initSceneView();
         });
     }
     async initSceneView() {

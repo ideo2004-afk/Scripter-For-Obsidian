@@ -21,7 +21,7 @@ export class SceneView extends ItemView {
     }
 
     async onOpen() {
-        this.updateView();
+        await this.updateView();
     }
 
     async onClose() {
@@ -136,7 +136,7 @@ export class SceneView extends ItemView {
                     } else {
                         this.foldedHeadings.add(item.line.toString());
                     }
-                    this.updateView();
+                    void this.updateView();
                 });
 
                 if (isFolded) currentFoldLevel = item.level;
@@ -152,7 +152,7 @@ export class SceneView extends ItemView {
 
             itemEl.onClickEvent((e) => {
                 e.preventDefault();
-                this.navToLine(file, item.line);
+                void this.navToLine(file, item.line);
             });
         });
 

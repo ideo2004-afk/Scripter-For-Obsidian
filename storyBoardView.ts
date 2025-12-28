@@ -247,8 +247,8 @@ export class StoryBoardView extends ItemView {
                 }
 
                 // Drag and Drop implementation
-                cardEl.addEventListener('dragstart', (e) => {
-                    (e as DragEvent).dataTransfer?.setData('text/plain', blockIdx.toString());
+                cardEl.addEventListener('dragstart', (e: DragEvent) => {
+                    e.dataTransfer?.setData('text/plain', blockIdx.toString());
                     cardEl.addClass('is-dragging');
                 });
 
@@ -259,14 +259,13 @@ export class StoryBoardView extends ItemView {
                     });
                 });
 
-                cardEl.addEventListener('dragover', (e) => {
+                cardEl.addEventListener('dragover', (e: DragEvent) => {
                     e.preventDefault();
-                    const dragEvent = e as DragEvent;
                     const rect = cardEl.getBoundingClientRect();
                     const midX = rect.left + rect.width / 2;
 
                     cardEl.removeClass('drag-over-left', 'drag-over-right');
-                    if (dragEvent.clientX < midX) {
+                    if (e.clientX < midX) {
                         cardEl.addClass('drag-over-left');
                     } else {
                         cardEl.addClass('drag-over-right');
@@ -277,12 +276,12 @@ export class StoryBoardView extends ItemView {
                     cardEl.removeClass('drag-over-left', 'drag-over-right');
                 });
 
-                cardEl.addEventListener('drop', async (e) => {
+                cardEl.addEventListener('drop', async (e: DragEvent) => {
                     e.preventDefault();
-                    const fromIdx = parseInt((e as DragEvent).dataTransfer?.getData('text/plain') || "-1");
+                    const fromIdx = parseInt(e.dataTransfer?.getData('text/plain') || "-1");
                     const rect = cardEl.getBoundingClientRect();
                     const midX = rect.left + rect.width / 2;
-                    const dropOnRight = (e as DragEvent).clientX > midX;
+                    const dropOnRight = e.clientX > midX;
 
                     let toIdx = blockIdx;
                     // If dropping on right, we increment toIdx to insert AFTER
@@ -302,7 +301,7 @@ export class StoryBoardView extends ItemView {
                 // Left-click only: navigate to line
                 cardEl.addEventListener('click', (e: MouseEvent) => {
                     if (e.button === 0) {
-                        this.navToLine(block.originalLine);
+                        void this.navToLine(block.originalLine);
                     }
                 });
 
@@ -404,7 +403,7 @@ export class StoryBoardView extends ItemView {
         if (this.file) {
             await this.app.vault.modify(this.file, newContent);
             setTimeout(() => {
-                this.updateView();
+                void this.updateView();
             }, 50);
         }
     }
@@ -426,7 +425,7 @@ export class StoryBoardView extends ItemView {
         if (this.file) {
             await this.app.vault.modify(this.file, newContent);
             setTimeout(() => {
-                this.updateView();
+                void this.updateView();
             }, 50);
         }
     }
@@ -509,7 +508,7 @@ export class StoryBoardView extends ItemView {
             if (this.file) {
                 await this.app.vault.modify(this.file, newContent);
                 overlay.remove();
-                this.updateView();
+                await this.updateView();
             }
         };
 
@@ -537,7 +536,7 @@ export class StoryBoardView extends ItemView {
 
         if (this.file) {
             await this.app.vault.modify(this.file, newContent);
-            this.updateView();
+            await this.updateView();
         }
     }
 
@@ -557,7 +556,7 @@ export class StoryBoardView extends ItemView {
 
         if (this.file) {
             await this.app.vault.modify(this.file, newContent);
-            this.updateView();
+            await this.updateView();
         }
     }
 
@@ -582,7 +581,7 @@ export class StoryBoardView extends ItemView {
             if (this.file) {
                 await this.app.vault.modify(this.file, newContent);
                 overlay.remove();
-                this.updateView();
+                await this.updateView();
             }
         };
 
@@ -691,7 +690,7 @@ ${after}`;
             const fullContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
             if (this.file) {
                 await this.app.vault.modify(this.file, fullContent);
-                this.updateView();
+                await this.updateView();
                 new Notice("AI Beat Generated!");
             }
 
@@ -783,7 +782,7 @@ ${transcript}`;
                 const finalFullContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
                 if (this.file) {
                     await this.app.vault.modify(this.file, finalFullContent);
-                    this.updateView();
+                    await this.updateView();
                     new Notice(`✨ Batch Complete! Generated ${successCount} summaries.`);
                 }
             } else {
