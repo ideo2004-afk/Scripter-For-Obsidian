@@ -16,7 +16,7 @@ export const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.
 export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*$/;
+export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
 export const CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
 export const COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
 export const SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
@@ -188,24 +188,35 @@ export default class ScriptEditorPlugin extends Plugin {
 
                 if (text.startsWith('#')) return;
 
-                const format = this.detectExplicitFormat(text);
-                if (format) {
-                    node.dataset.scriptProcessed = "true";
-                    node.addClass(format.cssClass);
+                // Split merged paragraphs by newline to handle Reading Mode's merging behavior
+                const lines = text.split('\n');
+                node.empty();
+                node.dataset.scriptProcessed = "true";
 
-                    const colonMatch = text.match(CHARACTER_COLON_REGEX);
-                    if (format.typeKey === 'CHARACTER' && colonMatch) {
-                        const [_, charName, colon, dialogueText] = colonMatch;
-                        if (dialogueText.trim()) {
-                            node.empty();
-                            node.createSpan({ cls: 'script-character', text: charName + colon });
-                            node.createDiv({ cls: 'script-dialogue', text: dialogueText.trim() });
-                        }
+                let previousType: string | null = null;
+
+                lines.forEach((line) => {
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine) return;
+
+                    const format = this.detectExplicitFormat(trimmedLine);
+                    let cssClass = CSS_CLASSES.ACTION;
+                    let currentType = 'ACTION';
+
+                    if (format) {
+                        cssClass = format.cssClass;
+                        currentType = format.typeKey;
+                    } else if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
+                        // Inherited Dialogue logic
+                        cssClass = CSS_CLASSES.DIALOGUE;
+                        currentType = 'DIALOGUE';
                     }
-                } else {
-                    node.dataset.scriptProcessed = "true";
-                    node.addClass(CSS_CLASSES.ACTION);
-                }
+
+                    const lineEl = node.createDiv({ cls: cssClass });
+                    lineEl.setText(trimmedLine);
+
+                    previousType = currentType;
+                });
             });
         });
 

@@ -787,3 +787,25 @@
 .storyboard-modal-footer button:hover {
     opacity: 0.9;
 }
+
+/* ------------------------------------------------------------------
+   Mobile Responsive Adjustments
+   ------------------------------------------------------------------ */
+
+/* Preview Mode（閱讀模式）*/
+.is-mobile .fountain,
+.is-mobile .script {
+    font-size: 1.1em;
+    --script-dialogue-margin: 2em;
+}
+
+/* Live Preview（即時預覽）- 針對編輯區 */
+.is-mobile .fountain .cm-content,
+.is-mobile .script .cm-content {
+    font-size: 1.1em;
+}
+
+/* Storyboard（卡片模式）*/
+.is-mobile .script-editor-storyboard-container {
+    font-size: 1.2em;
+}

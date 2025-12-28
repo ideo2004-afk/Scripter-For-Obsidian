@@ -79,7 +79,8 @@ export class DocxExporter {
                 const colonMatch = charName.match(CHARACTER_COLON_REGEX);
                 if (colonMatch) {
                     charName = colonMatch[1].trim() + colonMatch[2];
-                    dialogueAfterColon = colonMatch[3].trim();
+                    // dialogueAfterColon is not captured by this regex anymore
+                    dialogueAfterColon = "";
                 }
 
                 paragraphs.push(new Paragraph({

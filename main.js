@@ -19065,7 +19065,7 @@ var DocxExporter = class {
         const colonMatch = charName.match(CHARACTER_COLON_REGEX);
         if (colonMatch) {
           charName = colonMatch[1].trim() + colonMatch[2];
-          dialogueAfterColon = colonMatch[3].trim();
+          dialogueAfterColon = "";
         }
         paragraphs.push(new Paragraph({
           children: [new TextRun({ text: charName.toUpperCase(), font: "Courier New", size: 24 })],
@@ -19895,7 +19895,7 @@ var SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
 var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})[:：]\s*$/;
+var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
 var CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
 var COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
 var SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
@@ -20026,23 +20026,28 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
         }
         if (text.startsWith("#"))
           return;
-        const format = this.detectExplicitFormat(text);
-        if (format) {
-          node.dataset.scriptProcessed = "true";
-          node.addClass(format.cssClass);
-          const colonMatch = text.match(CHARACTER_COLON_REGEX);
-          if (format.typeKey === "CHARACTER" && colonMatch) {
-            const [_, charName, colon, dialogueText] = colonMatch;
-            if (dialogueText.trim()) {
-              node.empty();
-              node.createSpan({ cls: "script-character", text: charName + colon });
-              node.createDiv({ cls: "script-dialogue", text: dialogueText.trim() });
-            }
+        const lines = text.split("\n");
+        node.empty();
+        node.dataset.scriptProcessed = "true";
+        let previousType = null;
+        lines.forEach((line) => {
+          const trimmedLine = line.trim();
+          if (!trimmedLine)
+            return;
+          const format = this.detectExplicitFormat(trimmedLine);
+          let cssClass = CSS_CLASSES.ACTION;
+          let currentType = "ACTION";
+          if (format) {
+            cssClass = format.cssClass;
+            currentType = format.typeKey;
+          } else if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
+            cssClass = CSS_CLASSES.DIALOGUE;
+            currentType = "DIALOGUE";
           }
-        } else {
-          node.dataset.scriptProcessed = "true";
-          node.addClass(CSS_CLASSES.ACTION);
-        }
+          const lineEl = node.createDiv({ cls: cssClass });
+          lineEl.setText(trimmedLine);
+          previousType = currentType;
+        });
       });
     });
     this.registerEditorExtension(this.livePreviewExtension());
