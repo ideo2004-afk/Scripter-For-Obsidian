@@ -27,13 +27,15 @@ __export(main_exports, {
   CHARACTER_CAPS_REGEX: () => CHARACTER_CAPS_REGEX,
   CHARACTER_COLON_REGEX: () => CHARACTER_COLON_REGEX,
   COLOR_TAG_REGEX: () => COLOR_TAG_REGEX,
+  CSS_CLASSES: () => CSS_CLASSES,
   NOTE_REGEX: () => NOTE_REGEX,
   OS_DIALOGUE_REGEX: () => OS_DIALOGUE_REGEX,
   PARENTHETICAL_REGEX: () => PARENTHETICAL_REGEX,
   SCENE_REGEX: () => SCENE_REGEX,
+  SCRIPT_MARKERS: () => SCRIPT_MARKERS,
   SUMMARY_REGEX: () => SUMMARY_REGEX,
   TRANSITION_REGEX: () => TRANSITION_REGEX,
-  default: () => ScriptEditorPlugin
+  default: () => ScriptEditorPlugin2
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian3 = require("obsidian");
@@ -19885,6 +19887,56 @@ ${transcript}`;
   }
 };
 
+// readingView.ts
+function registerReadingView(plugin) {
+  plugin.registerMarkdownPostProcessor((element, context) => {
+    const fm = context.frontmatter;
+    const cls = (fm == null ? void 0 : fm.cssclasses) || (fm == null ? void 0 : fm.cssclass) || [];
+    const classesArray = Array.isArray(cls) ? cls : typeof cls === "string" ? [cls] : [];
+    if (!classesArray.includes("fountain") && !classesArray.includes("script")) {
+      return;
+    }
+    const leaves = element.querySelectorAll("p, li");
+    leaves.forEach((node) => {
+      var _a;
+      if (node.dataset.scriptProcessed)
+        return;
+      const text = ((_a = node.innerText) == null ? void 0 : _a.trim()) || "";
+      if (!text)
+        return;
+      if (COLOR_TAG_REGEX.test(text) || SUMMARY_REGEX.test(text) || NOTE_REGEX.test(text)) {
+        node.style.display = "none";
+        node.dataset.scriptProcessed = "true";
+        return;
+      }
+      if (text.startsWith("#"))
+        return;
+      const lines = text.split("\n");
+      node.empty();
+      node.dataset.scriptProcessed = "true";
+      let previousType = null;
+      lines.forEach((line) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine)
+          return;
+        const format = plugin.detectExplicitFormat(trimmedLine);
+        let cssClass = CSS_CLASSES.ACTION;
+        let currentType = "ACTION";
+        if (format) {
+          cssClass = format.cssClass;
+          currentType = format.typeKey;
+        } else if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
+          cssClass = CSS_CLASSES.DIALOGUE;
+          currentType = "DIALOGUE";
+        }
+        const lineEl = node.createDiv({ cls: cssClass });
+        lineEl.setText(trimmedLine);
+        previousType = currentType;
+      });
+    });
+  });
+}
+
 // main.ts
 var SCRIPT_MARKERS = {
   CHARACTER: "@",
@@ -19920,7 +19972,7 @@ var DEFAULT_SETTINGS = {
   mySetting: "default",
   geminiApiKey: ""
 };
-var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
+var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
   constructor() {
     super(...arguments);
     this.lastActiveFile = null;
@@ -20007,52 +20059,7 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
         return false;
       }
     });
-    this.registerMarkdownPostProcessor((element, context) => {
-      const fm = context.frontmatter;
-      const cls = (fm == null ? void 0 : fm.cssclasses) || (fm == null ? void 0 : fm.cssclass) || [];
-      const classesArray = Array.isArray(cls) ? cls : typeof cls === "string" ? [cls] : [];
-      if (!classesArray.includes("fountain") && !classesArray.includes("script")) {
-        return;
-      }
-      const leaves = element.querySelectorAll("p, li");
-      leaves.forEach((node) => {
-        var _a;
-        if (node.dataset.scriptProcessed)
-          return;
-        const text = ((_a = node.innerText) == null ? void 0 : _a.trim()) || "";
-        if (!text)
-          return;
-        if (COLOR_TAG_REGEX.test(text) || SUMMARY_REGEX.test(text) || NOTE_REGEX.test(text)) {
-          node.style.display = "none";
-          node.dataset.scriptProcessed = "true";
-          return;
-        }
-        if (text.startsWith("#"))
-          return;
-        const lines = text.split("\n");
-        node.empty();
-        node.dataset.scriptProcessed = "true";
-        let previousType = null;
-        lines.forEach((line) => {
-          const trimmedLine = line.trim();
-          if (!trimmedLine)
-            return;
-          const format = this.detectExplicitFormat(trimmedLine);
-          let cssClass = CSS_CLASSES.ACTION;
-          let currentType = "ACTION";
-          if (format) {
-            cssClass = format.cssClass;
-            currentType = format.typeKey;
-          } else if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
-            cssClass = CSS_CLASSES.DIALOGUE;
-            currentType = "DIALOGUE";
-          }
-          const lineEl = node.createDiv({ cls: cssClass });
-          lineEl.setText(trimmedLine);
-          previousType = currentType;
-        });
-      });
-    });
+    registerReadingView(this);
     this.registerEditorExtension(this.livePreviewExtension());
     this.registerEvent(
       this.app.workspace.on("editor-change", (editor) => {
@@ -20402,6 +20409,9 @@ var ScriptEditorPlugin = class extends import_obsidian3.Plugin {
         item.setTitle(title).setIcon(icon).onClick(() => this.toggleLinePrefix(editor, marker));
       });
     }
+  }
+  exportExplicitFormat(text) {
+    return this.detectExplicitFormat(text);
   }
   detectExplicitFormat(text) {
     if (SCENE_REGEX.test(text)) {
