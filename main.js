@@ -24,10 +24,11 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // main.ts
 var main_exports = {};
 __export(main_exports, {
-  CHARACTER_CAPS_REGEX: () => CHARACTER_CAPS_REGEX,
+  CHARACTER_CAPS_REGEX: () => CHARACTER_CAPS_REGEX2,
   CHARACTER_COLON_REGEX: () => CHARACTER_COLON_REGEX,
   COLOR_TAG_REGEX: () => COLOR_TAG_REGEX,
   CSS_CLASSES: () => CSS_CLASSES,
+  LP_CLASSES: () => LP_CLASSES,
   NOTE_REGEX: () => NOTE_REGEX,
   OS_DIALOGUE_REGEX: () => OS_DIALOGUE_REGEX,
   PARENTHETICAL_REGEX: () => PARENTHETICAL_REGEX,
@@ -35,10 +36,10 @@ __export(main_exports, {
   SCRIPT_MARKERS: () => SCRIPT_MARKERS,
   SUMMARY_REGEX: () => SUMMARY_REGEX,
   TRANSITION_REGEX: () => TRANSITION_REGEX,
-  default: () => ScriptEditorPlugin2
+  default: () => ScriptEditorPlugin3
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian3 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // node_modules/docx/dist/index.mjs
 var __defProp2 = Object.defineProperty;
@@ -19130,10 +19131,6 @@ var DocxExporter = class {
   }
 };
 
-// main.ts
-var import_state = require("@codemirror/state");
-var import_view = require("@codemirror/view");
-
 // sceneView.ts
 var import_obsidian = require("obsidian");
 var SCENE_VIEW_TYPE = "script-editor-scene-view";
@@ -19937,6 +19934,168 @@ function registerReadingView(plugin) {
   });
 }
 
+// editorExtension.ts
+var import_state = require("@codemirror/state");
+var import_view = require("@codemirror/view");
+var import_obsidian3 = require("obsidian");
+function livePreviewExtension(plugin) {
+  return import_view.ViewPlugin.fromClass(class {
+    constructor(view) {
+      this.decorations = this.buildDecorations(view);
+    }
+    update(update) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        this.decorations = this.buildDecorations(update.view);
+      }
+    }
+    buildDecorations(view) {
+      const builder = new import_state.RangeSetBuilder();
+      const isScript = view.dom.closest(".fountain") || view.dom.closest(".script");
+      if (!isScript)
+        return builder.finish();
+      const isLivePreview = view.state.field(import_obsidian3.editorLivePreviewField);
+      if (!isLivePreview)
+        return builder.finish();
+      const selection = view.state.selection;
+      let previousType = null;
+      const hiddenDeco = import_view.Decoration.mark({ class: LP_CLASSES.SYMBOL });
+      for (const { from, to } of view.visibleRanges) {
+        for (let pos = from; pos <= to; ) {
+          const line = view.state.doc.lineAt(pos);
+          const text = line.text;
+          const trimmed = text.trim();
+          let lpClass = null;
+          let currentType = "ACTION";
+          let shouldHideMarker = false;
+          let isCursorOnLine = false;
+          for (const range2 of selection.ranges) {
+            if (range2.head >= line.from && range2.head <= line.to) {
+              isCursorOnLine = true;
+              break;
+            }
+          }
+          const lineDecos = [];
+          if (!trimmed) {
+            currentType = "EMPTY";
+          } else if (NOTE_REGEX.test(trimmed)) {
+            lpClass = LP_CLASSES.NOTE;
+            currentType = "EMPTY";
+            const prefixMatch = text.match(/^%%note:\s*/i);
+            if (prefixMatch) {
+              const prefixLen = prefixMatch[0].length;
+              const contentStart = line.from + prefixLen;
+              const contentEnd = line.to - 2;
+              if (contentStart < contentEnd) {
+                lineDecos.push({ from: contentStart, to: contentEnd, deco: import_view.Decoration.mark({ class: "lp-note-content" }) });
+              }
+              lineDecos.push({ from: line.from, to: contentStart, deco: hiddenDeco });
+              lineDecos.push({ from: contentEnd, to: line.to, deco: hiddenDeco });
+            }
+          } else if (COLOR_TAG_REGEX.test(trimmed) || SUMMARY_REGEX.test(trimmed)) {
+            if (!isCursorOnLine) {
+              lpClass = LP_CLASSES.SYMBOL;
+              shouldHideMarker = true;
+            }
+            currentType = "EMPTY";
+          } else if (SCENE_REGEX.test(text)) {
+            lpClass = LP_CLASSES.SCENE;
+            currentType = "SCENE";
+            if (!isCursorOnLine && text.startsWith(".")) {
+              shouldHideMarker = true;
+            }
+          } else if (TRANSITION_REGEX.test(text)) {
+            lpClass = LP_CLASSES.TRANSITION;
+            currentType = "TRANSITION";
+          } else if (OS_DIALOGUE_REGEX.test(text)) {
+            lpClass = LP_CLASSES.PARENTHETICAL;
+            currentType = "PARENTHETICAL";
+          } else if (PARENTHETICAL_REGEX.test(text)) {
+            lpClass = LP_CLASSES.PARENTHETICAL;
+            currentType = "PARENTHETICAL";
+          } else {
+            const format = plugin.detectExplicitFormat(trimmed);
+            if (format && format.typeKey === "CHARACTER") {
+              lpClass = LP_CLASSES.CHARACTER;
+              currentType = "CHARACTER";
+              if (!isCursorOnLine && text.startsWith(SCRIPT_MARKERS.CHARACTER)) {
+                shouldHideMarker = true;
+              }
+            } else if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
+              lpClass = LP_CLASSES.DIALOGUE;
+              currentType = "DIALOGUE";
+            } else {
+              currentType = "ACTION";
+            }
+          }
+          if (lpClass) {
+            builder.add(line.from, line.from, import_view.Decoration.line({
+              attributes: { class: lpClass }
+            }));
+          }
+          if (shouldHideMarker) {
+            lineDecos.push({ from: line.from, to: line.from + 1, deco: hiddenDeco });
+          }
+          lineDecos.sort((a, b) => a.from - b.from).forEach((d) => {
+            if (d.from < d.to) {
+              builder.add(d.from, d.to, d.deco);
+            }
+          });
+          previousType = currentType;
+          pos = line.to + 1;
+        }
+      }
+      return builder.finish();
+    }
+  }, {
+    decorations: (v) => v.decorations
+  });
+}
+
+// settings.ts
+var import_obsidian4 = require("obsidian");
+var DEFAULT_SETTINGS = {
+  mySetting: "default",
+  geminiApiKey: ""
+};
+var ScriptEditorSettingTab = class extends import_obsidian4.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    new import_obsidian4.Setting(containerEl).setName("Usage guide").setHeading();
+    new import_obsidian4.Setting(containerEl).setName("AI Beat summary (Gemini 2.5 Flash)").setDesc("Get your API key from Google AI Studio.").addText((text) => text.setPlaceholder("Enter your Gemini API key").setValue(this.plugin.settings.geminiApiKey).onChange(async (value) => {
+      this.plugin.settings.geminiApiKey = value.trim();
+      await this.plugin.saveSettings();
+    }).inputEl.style.width = "350px");
+    new import_obsidian4.Setting(containerEl).setName("Quick features").setDesc("Automation and creation tools.").setHeading();
+    const featuresDiv = containerEl.createDiv();
+    featuresDiv.createEl("li", { text: "New Script Button: Click the scroll icon in the left ribbon to create a new screenplay." });
+    featuresDiv.createEl("li", { text: "Story Board Mode: Activate the grid icon in the right sidebar for a holistic view of script structure." });
+    featuresDiv.createEl("li", { text: "AI Beat Summary: Instantly generate scene summaries using Gemini AI." });
+    featuresDiv.createEl("li", { text: "Character Quick Menu: Type @ to access frequently used character names." });
+    featuresDiv.createEl("li", { text: "Renumber Scenes: Right-click in the editor to re-order your scene numbers automatically." });
+    new import_obsidian4.Setting(containerEl).setName("Screenplay syntax").setDesc("Basic rules for Fountain-compatible formatting.").setHeading();
+    const syntaxDiv = containerEl.createDiv();
+    syntaxDiv.createEl("li", { text: "Scene Heading: INT. / EXT. \u2014 Automatic bold & uppercase." });
+    syntaxDiv.createEl("li", { text: 'Character: @NAME \u2014 Centered. "@" is hidden in preview.' });
+    syntaxDiv.createEl("li", { text: "Dialogue: Text below Character \u2014 Automatically indented." });
+    syntaxDiv.createEl("li", { text: "Parenthetical: (emotion) / OS: / VO: \u2014 Centered & italic." });
+    syntaxDiv.createEl("li", { text: "Transition: CUT TO: / FADE IN \u2014 Right aligned." });
+    const supportDiv = containerEl.createEl("div", { attr: { style: "margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 20px;" } });
+    supportDiv.createEl("p", { text: "If you enjoy using Script Editor, consider supporting its development!" });
+    const link = supportDiv.createEl("a", { href: "https://buymeacoffee.com/ideo2004c" });
+    link.createEl("img", {
+      attr: {
+        src: "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
+        style: "height: 40px;"
+      }
+    });
+  }
+};
+
 // main.ts
 var SCRIPT_MARKERS = {
   CHARACTER: "@",
@@ -19947,7 +20106,7 @@ var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
 var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
-var CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
+var CHARACTER_CAPS_REGEX2 = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
 var COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
 var SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
 var NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
@@ -19968,11 +20127,7 @@ var LP_CLASSES = {
   NOTE: "lp-note",
   SYMBOL: "lp-marker-symbol"
 };
-var DEFAULT_SETTINGS = {
-  mySetting: "default",
-  geminiApiKey: ""
-};
-var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
+var ScriptEditorPlugin3 = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
     this.lastActiveFile = null;
@@ -20009,7 +20164,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
       name: "Export current script to .docx",
       checkCallback: (checking) => {
         var _a;
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
         if (view) {
           const fileCache = this.app.metadataCache.getFileCache(view.file);
           const cssClasses = (_a = fileCache == null ? void 0 : fileCache.frontmatter) == null ? void 0 : _a.cssclasses;
@@ -20028,7 +20183,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
       id: "open-story-board",
       name: "Open story board for current script",
       checkCallback: (checking) => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
         if (view && this.isScript(view.file)) {
           if (!checking) {
             void this.openStoryBoard(view.leaf, view.file);
@@ -20049,7 +20204,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
       id: "export-summary",
       name: "Export scene summaries to .md",
       checkCallback: (checking) => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
         if (view && this.isScript(view.file)) {
           if (!checking) {
             void this.exportSummary(view.file);
@@ -20060,7 +20215,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
       }
     });
     registerReadingView(this);
-    this.registerEditorExtension(this.livePreviewExtension());
+    this.registerEditorExtension(livePreviewExtension(this));
     this.registerEvent(
       this.app.workspace.on("editor-change", (editor) => {
         const lineCount = editor.lineCount();
@@ -20134,7 +20289,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
     );
     this.registerEvent(
       this.app.workspace.on("view-actions-menu", (menu, view) => {
-        if (view instanceof import_obsidian3.MarkdownView && this.isScript(view.file)) {
+        if (view instanceof import_obsidian5.MarkdownView && this.isScript(view.file)) {
           menu.addItem((item) => {
             item.setTitle("Open Story Board").setIcon("layout-grid").onClick(() => {
               void this.openStoryBoard(view.leaf, view.file);
@@ -20146,7 +20301,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         var _a;
-        if (file instanceof import_obsidian3.TFile && file.extension === "md") {
+        if (file instanceof import_obsidian5.TFile && file.extension === "md") {
           const cache = this.app.metadataCache.getFileCache(file);
           const cssClasses = (_a = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a.cssclasses;
           const classesArray = Array.isArray(cssClasses) ? cssClasses : typeof cssClasses === "string" ? [cssClasses] : [];
@@ -20167,9 +20322,9 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
           item.setTitle("New script").setIcon("scroll-text").onClick(async () => {
             var _a2;
             let folderPath = "/";
-            if (file instanceof import_obsidian3.TFolder) {
+            if (file instanceof import_obsidian5.TFolder) {
               folderPath = file.path;
-            } else if (file instanceof import_obsidian3.TFile) {
+            } else if (file instanceof import_obsidian5.TFile) {
               folderPath = ((_a2 = file.parent) == null ? void 0 : _a2.path) || "/";
             }
             await this.createNewScript(folderPath);
@@ -20180,7 +20335,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
     this.registerEditorSuggest(new CharacterSuggest(this.app, this));
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian3.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
         if (view) {
           const headerActions = view.containerEl.querySelector(".view-actions");
           const existingBtn = headerActions == null ? void 0 : headerActions.querySelector(".script-editor-storyboard-action");
@@ -20285,126 +20440,10 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
   onunload() {
   }
   // ------------------------------------------------------------------
-  // Live Preview Extension (CodeMirror 6)
-  // ------------------------------------------------------------------
-  livePreviewExtension() {
-    const plugin = this;
-    return import_view.ViewPlugin.fromClass(class {
-      constructor(view) {
-        this.decorations = this.buildDecorations(view);
-      }
-      update(update) {
-        if (update.docChanged || update.viewportChanged || update.selectionSet) {
-          this.decorations = this.buildDecorations(update.view);
-        }
-      }
-      buildDecorations(view) {
-        const builder = new import_state.RangeSetBuilder();
-        const isScript = view.dom.closest(".fountain") || view.dom.closest(".script");
-        if (!isScript)
-          return builder.finish();
-        const isLivePreview = view.state.field(import_obsidian3.editorLivePreviewField);
-        if (!isLivePreview)
-          return builder.finish();
-        const selection = view.state.selection;
-        let previousType = null;
-        const hiddenDeco = import_view.Decoration.mark({ class: LP_CLASSES.SYMBOL });
-        for (const { from, to } of view.visibleRanges) {
-          for (let pos = from; pos <= to; ) {
-            const line = view.state.doc.lineAt(pos);
-            const text = line.text;
-            const trimmed = text.trim();
-            let lpClass = null;
-            let currentType = "ACTION";
-            let shouldHideMarker = false;
-            let isCursorOnLine = false;
-            for (const range2 of selection.ranges) {
-              if (range2.head >= line.from && range2.head <= line.to) {
-                isCursorOnLine = true;
-                break;
-              }
-            }
-            const lineDecos = [];
-            if (!trimmed) {
-              currentType = "EMPTY";
-            } else if (NOTE_REGEX.test(trimmed)) {
-              lpClass = LP_CLASSES.NOTE;
-              currentType = "EMPTY";
-              const prefixMatch = text.match(/^%%note:\s*/i);
-              if (prefixMatch) {
-                const prefixLen = prefixMatch[0].length;
-                const contentStart = line.from + prefixLen;
-                const contentEnd = line.to - 2;
-                if (contentStart < contentEnd) {
-                  lineDecos.push({ from: contentStart, to: contentEnd, deco: import_view.Decoration.mark({ class: "lp-note-content" }) });
-                }
-                lineDecos.push({ from: line.from, to: contentStart, deco: hiddenDeco });
-                lineDecos.push({ from: contentEnd, to: line.to, deco: hiddenDeco });
-              }
-            } else if (COLOR_TAG_REGEX.test(trimmed) || SUMMARY_REGEX.test(trimmed)) {
-              if (!isCursorOnLine) {
-                lpClass = LP_CLASSES.SYMBOL;
-                shouldHideMarker = true;
-              }
-              currentType = "EMPTY";
-            } else if (SCENE_REGEX.test(text)) {
-              lpClass = LP_CLASSES.SCENE;
-              currentType = "SCENE";
-              if (!isCursorOnLine && text.startsWith(".")) {
-                shouldHideMarker = true;
-              }
-            } else if (TRANSITION_REGEX.test(text)) {
-              lpClass = LP_CLASSES.TRANSITION;
-              currentType = "TRANSITION";
-            } else if (OS_DIALOGUE_REGEX.test(text)) {
-              lpClass = LP_CLASSES.PARENTHETICAL;
-              currentType = "PARENTHETICAL";
-            } else if (PARENTHETICAL_REGEX.test(text)) {
-              lpClass = LP_CLASSES.PARENTHETICAL;
-              currentType = "PARENTHETICAL";
-            } else {
-              const format = plugin.detectExplicitFormat(trimmed);
-              if (format && format.typeKey === "CHARACTER") {
-                lpClass = LP_CLASSES.CHARACTER;
-                currentType = "CHARACTER";
-                if (!isCursorOnLine && text.startsWith(SCRIPT_MARKERS.CHARACTER)) {
-                  shouldHideMarker = true;
-                }
-              } else if (previousType === "CHARACTER" || previousType === "PARENTHETICAL" || previousType === "DIALOGUE") {
-                lpClass = LP_CLASSES.DIALOGUE;
-                currentType = "DIALOGUE";
-              } else {
-                currentType = "ACTION";
-              }
-            }
-            if (lpClass) {
-              builder.add(line.from, line.from, import_view.Decoration.line({
-                attributes: { class: lpClass }
-              }));
-            }
-            if (shouldHideMarker) {
-              lineDecos.push({ from: line.from, to: line.from + 1, deco: hiddenDeco });
-            }
-            lineDecos.sort((a, b) => a.from - b.from).forEach((d) => {
-              if (d.from < d.to) {
-                builder.add(d.from, d.to, d.deco);
-              }
-            });
-            previousType = currentType;
-            pos = line.to + 1;
-          }
-        }
-        return builder.finish();
-      }
-    }, {
-      decorations: (v) => v.decorations
-    });
-  }
-  // ------------------------------------------------------------------
   // Core Logic
   // ------------------------------------------------------------------
   addMenuItem(menu, title, icon, editor, marker) {
-    if (menu instanceof import_obsidian3.Menu) {
+    if (menu instanceof import_obsidian5.Menu) {
       menu.addItem((item) => {
         item.setTitle(title).setIcon(icon).onClick(() => this.toggleLinePrefix(editor, marker));
       });
@@ -20435,7 +20474,7 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
     if (text.startsWith(SCRIPT_MARKERS.CHARACTER))
       return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: true, markerLength: 1, typeKey: "CHARACTER" };
     const hasColon = CHARACTER_COLON_REGEX.test(text);
-    const isAllCapsEng = CHARACTER_CAPS_REGEX.test(text);
+    const isAllCapsEng = CHARACTER_CAPS_REGEX2.test(text);
     if (hasColon || isAllCapsEng) {
       return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: false, markerLength: 0, typeKey: "CHARACTER" };
     }
@@ -20504,14 +20543,14 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
       const folderPath = ((_a = file.parent) == null ? void 0 : _a.path) || "/";
       const fileName = `${baseName}.docx`;
       const filePath = folderPath === "/" ? fileName : `${folderPath}/${fileName}`;
-      new import_obsidian3.Notice(`Exporting ${fileName}...`);
+      new import_obsidian5.Notice(`Exporting ${fileName}...`);
       const buffer2 = await DocxExporter.exportToDocx(content, baseName);
       const arrayBuffer = buffer2.buffer.slice(buffer2.byteOffset, buffer2.byteOffset + buffer2.byteLength);
       await this.app.vault.adapter.writeBinary(filePath, arrayBuffer);
-      new import_obsidian3.Notice(`Successfully exported to ${baseName}.docx`);
+      new import_obsidian5.Notice(`Successfully exported to ${baseName}.docx`);
     } catch (error) {
       console.error("Export to DOCX failed:", error);
-      new import_obsidian3.Notice(`Failed to export to DOCX: ${error.message}`);
+      new import_obsidian5.Notice(`Failed to export to DOCX: ${error.message}`);
     }
   }
   async exportSummary(file) {
@@ -20549,25 +20588,25 @@ var ScriptEditorPlugin2 = class extends import_obsidian3.Plugin {
         }
       });
       if (summaryLines.length === 0) {
-        new import_obsidian3.Notice("No scenes with summaries found in the script.");
+        new import_obsidian5.Notice("No scenes with summaries found in the script.");
         return;
       }
       const finalContent = summaryLines.join("\n");
       const existingFile = this.app.vault.getAbstractFileByPath(summaryFilePath);
-      if (existingFile instanceof import_obsidian3.TFile) {
+      if (existingFile instanceof import_obsidian5.TFile) {
         await this.app.vault.modify(existingFile, finalContent);
       } else {
         await this.app.vault.create(summaryFilePath, finalContent);
       }
-      new import_obsidian3.Notice(`Successfully exported summary to ${summaryFileName}`);
+      new import_obsidian5.Notice(`Successfully exported summary to ${summaryFileName}`);
       const newFile = this.app.vault.getAbstractFileByPath(summaryFilePath);
-      if (newFile instanceof import_obsidian3.TFile) {
+      if (newFile instanceof import_obsidian5.TFile) {
         const leaf = this.app.workspace.getLeaf(false);
         await leaf.openFile(newFile);
       }
     } catch (error) {
       console.error("Export summary failed:", error);
-      new import_obsidian3.Notice(`Failed to export summary: ${error.message}`);
+      new import_obsidian5.Notice(`Failed to export summary: ${error.message}`);
     }
   }
   async createNewScript(folderPath) {
@@ -20640,7 +20679,7 @@ MARY:
 You can make it.
 `;
     const templateFile = this.app.vault.getAbstractFileByPath("Script Templet.md");
-    if (templateFile instanceof import_obsidian3.TFile) {
+    if (templateFile instanceof import_obsidian5.TFile) {
       fileContent = await this.app.vault.read(templateFile);
     }
     const newFile = await this.app.vault.create(filePath, fileContent);
@@ -20653,44 +20692,6 @@ You can make it.
   }
   async saveSettings() {
     await this.saveData(this.settings);
-  }
-};
-var ScriptEditorSettingTab = class extends import_obsidian3.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    new import_obsidian3.Setting(containerEl).setName("Usage guide").setHeading();
-    new import_obsidian3.Setting(containerEl).setName("AI Beat summary (Gemini 2.5 Flash)").setDesc("Get your API key from Google AI Studio.").addText((text) => text.setPlaceholder("Enter your Gemini API key").setValue(this.plugin.settings.geminiApiKey).onChange(async (value) => {
-      this.plugin.settings.geminiApiKey = value.trim();
-      await this.plugin.saveSettings();
-    }).inputEl.style.width = "350px");
-    new import_obsidian3.Setting(containerEl).setName("Quick features").setDesc("Automation and creation tools.").setHeading();
-    const featuresDiv = containerEl.createDiv();
-    featuresDiv.createEl("li", { text: "New Script Button: Click the scroll icon in the left ribbon to create a new screenplay." });
-    featuresDiv.createEl("li", { text: "Story Board Mode: Activate the grid icon in the right sidebar for a holistic view of script structure." });
-    featuresDiv.createEl("li", { text: "AI Beat Summary: Instantly generate scene summaries using Gemini AI." });
-    featuresDiv.createEl("li", { text: "Character Quick Menu: Type @ to access frequently used character names." });
-    featuresDiv.createEl("li", { text: "Renumber Scenes: Right-click in the editor to re-order your scene numbers automatically." });
-    new import_obsidian3.Setting(containerEl).setName("Screenplay syntax").setDesc("Basic rules for Fountain-compatible formatting.").setHeading();
-    const syntaxDiv = containerEl.createDiv();
-    syntaxDiv.createEl("li", { text: "Scene Heading: INT. / EXT. \u2014 Automatic bold & uppercase." });
-    syntaxDiv.createEl("li", { text: 'Character: @NAME \u2014 Centered. "@" is hidden in preview.' });
-    syntaxDiv.createEl("li", { text: "Dialogue: Text below Character \u2014 Automatically indented." });
-    syntaxDiv.createEl("li", { text: "Parenthetical: (emotion) / OS: / VO: \u2014 Centered & italic." });
-    syntaxDiv.createEl("li", { text: "Transition: CUT TO: / FADE IN \u2014 Right aligned." });
-    const supportDiv = containerEl.createEl("div", { attr: { style: "margin-top: 20px; border-top: 1px solid var(--background-modifier-border); padding-top: 20px;" } });
-    supportDiv.createEl("p", { text: "If you enjoy using Script Editor, consider supporting its development!" });
-    const link = supportDiv.createEl("a", { href: "https://buymeacoffee.com/ideo2004c" });
-    link.createEl("img", {
-      attr: {
-        src: "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png",
-        style: "height: 40px;"
-      }
-    });
   }
 };
 function extractCharacterNames(content, plugin) {
@@ -20710,7 +20711,7 @@ function extractCharacterNames(content, plugin) {
       const match = trimmed.match(CHARACTER_COLON_REGEX);
       if (match)
         name = match[1].trim();
-    } else if (CHARACTER_CAPS_REGEX.test(trimmed)) {
+    } else if (CHARACTER_CAPS_REGEX2.test(trimmed)) {
       name = trimmed.split("(")[0].trim();
     }
     name = name.replace(/[:：]+$/, "").trim();
@@ -20720,7 +20721,7 @@ function extractCharacterNames(content, plugin) {
   });
   return charCounts;
 }
-var CharacterSuggest = class extends import_obsidian3.EditorSuggest {
+var CharacterSuggest = class extends import_obsidian5.EditorSuggest {
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
