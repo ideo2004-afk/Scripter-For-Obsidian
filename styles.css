@@ -1,5 +1,8 @@
 /* Scripter CSS: Hollywood Standard & Obsidian Integration */
 
+/* ------------------------------------------------------------------
+   1. CORE SCRIPT VIEWS (Fountain Support)
+   ------------------------------------------------------------------ */
 .fountain,
 .script {
     --script-dialogue-margin: 7em;
@@ -32,13 +35,12 @@
         color: var(--text-normal) !important;
     }
 
-    /* Reading Mode: Handle p and li (for renumbered scenes) */
+    /* Reading Mode Elements */
     & .script-scene {
         font-weight: 700 !important;
         text-transform: uppercase;
         text-align: left !important;
         margin-top: 2em !important;
-        /* margin-bottom: 1em !important; */
         display: block !important;
     }
 
@@ -67,11 +69,10 @@
     & .script-transition {
         text-align: right !important;
         text-transform: uppercase;
-        /* margin-top: 1.5em !important; */
         display: block !important;
     }
 
-    /* Live Preview Classes */
+    /* Live Preview Elements */
     & .lp-scene {
         font-weight: 700 !important;
         text-transform: uppercase;
@@ -99,28 +100,23 @@
         text-transform: uppercase;
     }
 
+    /* Script Notes (Live Preview) */
     & .cm-line.lp-note {
-        /* 使用原生的對齊邏輯，與 FADE IN (lp-transition) 一致 */
         text-align: right !important;
         position: relative !important;
     }
 
     & .lp-note-content {
-        /* 設為 inline-block，讓它在右對齊的行內自然形成方塊 */
         display: inline-block !important;
         width: 280px !important;
         margin-right: -80px !important;
-        /* 往右突出 80px */
         text-align: left !important;
-
         font-size: 0.7em !important;
         color: var(--text-normal) !important;
         opacity: 0.8;
-
         background-color: rgba(251, 233, 154, 0.4) !important;
         border-radius: 4px !important;
         padding: 16px !important;
-
         font-family: var(--font-interface);
         font-style: normal !important;
         line-height: 1.5;
@@ -129,15 +125,12 @@
         cursor: text !important;
     }
 
-
-    /* Ensure the actual text is visible even if Obsidian thinks it's a comment */
     & .cm-line.lp-note .cm-comment:not(.lp-marker-symbol) {
         color: inherit !important;
         font-size: inherit !important;
         letter-spacing: normal !important;
     }
 
-    /* Only the specifically tagged markers (hiddenDeco) get hidden */
     & .lp-marker-symbol {
         color: transparent !important;
         font-size: 0px !important;
@@ -145,21 +138,20 @@
         pointer-events: none !important;
     }
 
-    /* H1 Title Centering */
-
     & h1,
     & .HyperMD-header-1 {
         text-align: center !important;
     }
 }
 
-/* Scene Mode Sidebar View Styling */
+/* ------------------------------------------------------------------
+   2. SIDEBAR NAVIGATION (Scene View)
+   ------------------------------------------------------------------ */
 .script-editor-scene-view-container {
     padding: 8px 12px;
     height: 100%;
     overflow-y: auto;
     font-size: 0.85em;
-    /* Closer to native outline/nav size */
 }
 
 .script-editor-scene-view-title h4 {
@@ -250,7 +242,6 @@
     display: block;
     width: 100%;
     white-space: normal;
-    /* Allow wrapping */
     font-size: 0.9em;
     line-height: 1.3;
 }
@@ -263,11 +254,9 @@
     padding: 2px 0;
 }
 
-
 /* ------------------------------------------------------------------
-   Story Board Mode (Card View)
+   3. STORYBOARD VIEW (Card Grid)
    ------------------------------------------------------------------ */
-
 .script-editor-storyboard-container {
     padding: 40px;
     height: 100%;
@@ -299,7 +288,6 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    /* 移除強制背景色，交給 mod-cta 處理 */
     padding: 4px 14px;
     font-size: var(--font-ui-small);
     font-weight: 500;
@@ -373,7 +361,6 @@
     line-height: 1.5;
     display: -webkit-box;
     -webkit-line-clamp: 6;
-    /* Show a bit more in card view */
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -404,16 +391,12 @@
     color: var(--text-normal);
 }
 
-/* Mobile Friendly: show menu button with higher opacity */
-.is-mobile .storyboard-card-menu-btn {
-    opacity: 0.5;
-}
-
 .storyboard-back-btn {
     font-size: 0.9em;
     cursor: pointer;
 }
 
+/* Card States (Dragging) */
 .storyboard-card.is-dragging {
     opacity: 0.4;
     border: 2px dashed var(--text-accent);
@@ -443,7 +426,7 @@
     z-index: 10;
 }
 
-/* Color Coding Styles - Triangle Trigger in Top-Left */
+/* Color Coding Styles */
 .storyboard-card-color-dot {
     position: absolute;
     top: 0;
@@ -469,7 +452,6 @@
     border-color: var(--text-muted) transparent transparent transparent;
 }
 
-/* Card Corner Color Tag - Triangle Design */
 .storyboard-card-color-red::before,
 .storyboard-card-color-blue::before,
 .storyboard-card-color-green::before,
@@ -507,7 +489,6 @@
     border-color: #a855f7 transparent transparent transparent;
 }
 
-/* When color is set, the dot becomes invisible but still clickable */
 .storyboard-card-color-red .storyboard-card-color-dot,
 .storyboard-card-color-blue .storyboard-card-color-dot,
 .storyboard-card-color-green .storyboard-card-color-dot,
@@ -527,7 +508,7 @@
     border-color: rgba(255, 255, 255, 0.5) transparent transparent transparent;
 }
 
-/* Floating Visual Color Picker - Vertical Layout */
+/* Color Picker Popup */
 .storyboard-color-picker {
     position: absolute;
     display: flex;
@@ -573,8 +554,6 @@
     filter: brightness(1.1);
 }
 
-/* No selection indicator for absolute minimalism */
-
 .color-option-none {
     background-color: var(--background-modifier-border);
 }
@@ -599,14 +578,13 @@
     background-color: #a855f7;
 }
 
-/* Dark mode adjustments for picker container */
 .theme-dark .storyboard-color-picker {
     background-color: rgba(30, 30, 30, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* ------------------------------------------------------------------
-   Story Board Modal Styles
+   4. MODALS & OVERLAYS (UI Components)
    ------------------------------------------------------------------ */
 .storyboard-modal-overlay {
     position: fixed;
@@ -692,9 +670,7 @@
     flex: 1;
     padding: 16px 30px;
     gap: 2px !important;
-    /* Extremely tight gap between siblings */
     overflow-y: auto;
-    /* Allow scrolling if content is long */
 }
 
 .storyboard-modal-title-input {
@@ -800,24 +776,22 @@
 }
 
 /* ------------------------------------------------------------------
-   Touch Device & Responsive Adjustments
+   5. MOBILE & RESPONSIVE (Tiered Adjustments)
    ------------------------------------------------------------------ */
-
-/* Global Touch Adjustments */
 .is-mobile {
 
-    /* Improve touch targets for sidebar */
+    /* Sidebar touch spacing */
     & .script-editor-scene-item {
         padding: 8px 12px;
         margin: 4px 0;
     }
 
-    /* Storyboard Container padding adjustment */
+    /* Storyboard container adjustment */
     & .script-editor-storyboard-container {
         padding: 20px;
     }
 
-    /* Header height on mobile */
+    /* Storyboard Header Responsive */
     & .storyboard-header {
         flex-direction: column;
         gap: 10px;
@@ -830,14 +804,35 @@
         width: 100%;
         justify-content: center;
     }
+
+    /* Menu button visibility */
+    & .storyboard-card-menu-btn {
+        opacity: 0.5;
+    }
 }
 
-/* Preview Mode（閱讀模式）*/
-/* Phone Specific Adjustments */
+/* Base Responsive Font & Margins */
+.is-mobile .fountain,
+.is-mobile .script {
+    font-size: 1.1em;
+    --script-dialogue-margin: 2em;
+}
+
+/* Live Preview Content Adjustment */
+.is-mobile .fountain .cm-content,
+.is-mobile .script .cm-content {
+    font-size: 1.1em;
+}
+
+/* Storyboard Card Font Adjustment */
+.is-mobile .script-editor-storyboard-container {
+    font-size: 1.2em;
+}
+
+/* Phone Specific Fixes (Tiered) */
 .is-phone {
     & .storyboard-grid {
         grid-template-columns: 1fr;
-        /* Stack cards on phones */
     }
 
     & .storyboard-h2-title {
@@ -847,7 +842,6 @@
 
     & .storyboard-modal-overlay {
         align-items: flex-end;
-        /* Modal slides from bottom on phones */
     }
 
     & .storyboard-edit-modal {
@@ -857,8 +851,7 @@
     }
 }
 
-/* Live Preview（即時預覽）- 針對編輯區 */
-/* Tablet (iPad) Specific Adjustments */
+/* Tablet (iPad) Specific Fixes (Tiered) */
 .is-tablet {
     & .storyboard-grid {
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -866,11 +859,5 @@
 
     & .storyboard-card-summary {
         -webkit-line-clamp: 8;
-        /* Show more summary on tablets */
     }
-}
-
-/* Storyboard（卡片模式）*/
-.is-mobile .script-editor-storyboard-container {
-    font-size: 1.2em;
 }
