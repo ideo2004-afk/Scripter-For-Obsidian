@@ -53,13 +53,6 @@
         display: block !important;
     }
 
-    /* Hide list markers for renumbered scenes */
-    & li {
-        list-style: none !important;
-        padding-left: 0 !important;
-        margin-left: 0 !important;
-    }
-
     /* Live Preview Classes */
     & .lp-scene {
         font-weight: 700 !important;
