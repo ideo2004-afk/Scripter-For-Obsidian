@@ -107,4 +107,36 @@ Screenplay:
 ${transcript}`;
         return this.callGemini(prompt);
     }
+
+    /**
+     * Specialized prompt for rewriting/generating scene content based on rough notes and context
+     */
+    async generateRewriteScene(content: string, before: string, after: string): Promise<GeminiResponse> {
+        const prompt = `Act as a professional Hollywood screenwriter.
+Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene.
+Requirements:
+1. Maintain consistency with the provided "Context Before" and "Context After".
+2. Expand rough notes into detailed Action descriptions and natural Dialogue.
+3. Strictly follow the location and time specified in the "Current Scene Content"'s heading.
+4. If "Current Scene Content" consists only of a heading, generate a logical new scene that bridges the context.
+5. Include a concise ONE-sentence summary of the new scene.
+6. Provide initial script content (Action/Dialogue) in standard screenplay format.
+7. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section, as it is already kept by the editor.
+8. CRITICAL: If the input is in Traditional Chinese (繁體中文), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (簡體中文).
+9. Return ONLY the following format (no intros or outros):
+
+SUMMARY: [One sentence summary]
+CONTENT:
+[The rewritten script content (excluding the heading)]
+
+Context Before:
+${before}
+
+Context After:
+${after}
+
+Current Scene Content:
+${content}`;
+        return this.callGemini(prompt);
+    }
 }

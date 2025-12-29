@@ -19363,6 +19363,37 @@ Screenplay:
 ${transcript}`;
     return this.callGemini(prompt);
   }
+  /**
+   * Specialized prompt for rewriting/generating scene content based on rough notes and context
+   */
+  async generateRewriteScene(content, before, after) {
+    const prompt = `Act as a professional Hollywood screenwriter.
+Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene.
+Requirements:
+1. Maintain consistency with the provided "Context Before" and "Context After".
+2. Expand rough notes into detailed Action descriptions and natural Dialogue.
+3. Strictly follow the location and time specified in the "Current Scene Content"'s heading.
+4. If "Current Scene Content" consists only of a heading, generate a logical new scene that bridges the context.
+5. Include a concise ONE-sentence summary of the new scene.
+6. Provide initial script content (Action/Dialogue) in standard screenplay format.
+7. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section, as it is already kept by the editor.
+8. CRITICAL: If the input is in Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (\u7C21\u9AD4\u4E2D\u6587).
+9. Return ONLY the following format (no intros or outros):
+
+SUMMARY: [One sentence summary]
+CONTENT:
+[The rewritten script content (excluding the heading)]
+
+Context Before:
+${before}
+
+Context After:
+${after}
+
+Current Scene Content:
+${content}`;
+    return this.callGemini(prompt);
+  }
 };
 
 // storyBoardView.ts
@@ -20212,10 +20243,20 @@ function registerMenus(plugin) {
       return false;
     }
   });
+  plugin.addCommand({
+    id: "ai-rewrite-scene",
+    name: "AI Rewrite Scene",
+    editorCallback: (editor) => aiSummaryAndRewrite(plugin, editor)
+  });
   plugin.registerEvent(
     app.workspace.on("editor-menu", (menu, editor, view) => {
       if (!plugin.isScript(view.file))
         return;
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle("AI Rewrite Scene").setIcon("sparkles").onClick(() => aiSummaryAndRewrite(plugin, editor));
+      });
+      menu.addSeparator();
       menu.addItem((item) => {
         item.setTitle("Script Editor").setIcon("film");
         const subMenu = item.setSubmenu();
@@ -20507,11 +20548,10 @@ EXT. scene 01
 %%summary: summary of this scene.%%
 %%color: blue%%
 
-Here is Action description. Here is Action description. Here is Action description. 
-Here is Action description. 
+Here is Action description. Here is Action description. Here is Action description.
 
 BOB:
-It is too hard. I will never make
+It is too hard. I will never make it.
 
 MARY:
 You can make it.
@@ -20523,7 +20563,7 @@ INT. scene 02
 Here is Action description. Here is Action description. 
 
 BOB:
-It is too hard. I will never make
+It is too hard. I will never make it.
 
 MARY:
 You can make it.
@@ -20536,6 +20576,100 @@ You can make it.
   const leaf = plugin.app.workspace.getLeaf(false);
   await leaf.openFile(newFile);
   plugin.app.workspace.trigger("rename", newFile, newFile.path);
+}
+async function aiSummaryAndRewrite(plugin, editor) {
+  const apiKey = plugin.settings.geminiApiKey;
+  if (!apiKey) {
+    new import_obsidian6.Notice("Please set your Gemini API Key in settings first.");
+    return;
+  }
+  const content = editor.getValue();
+  const lines = content.split("\n");
+  const cursor = editor.getCursor();
+  const cursorLine = cursor.line;
+  const blocks = [];
+  let currentBlock = {
+    type: "preamble",
+    title: "",
+    contentLines: [],
+    originalStartLine: 0
+  };
+  blocks.push(currentBlock);
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) {
+      currentBlock = {
+        type: "h2",
+        title: trimmed.replace(/^##\s+/, ""),
+        contentLines: [line],
+        originalStartLine: index
+      };
+      blocks.push(currentBlock);
+    } else if (SCENE_REGEX.test(trimmed)) {
+      currentBlock = {
+        type: "scene",
+        title: trimmed,
+        contentLines: [line],
+        originalStartLine: index
+      };
+      blocks.push(currentBlock);
+    } else {
+      currentBlock.contentLines.push(line);
+    }
+  });
+  let targetBlockIdx = -1;
+  for (let i = 0; i < blocks.length; i++) {
+    const start = blocks[i].originalStartLine;
+    const end = i < blocks.length - 1 ? blocks[i + 1].originalStartLine - 1 : lines.length - 1;
+    if (cursorLine >= start && cursorLine <= end) {
+      targetBlockIdx = i;
+      break;
+    }
+  }
+  if (targetBlockIdx === -1 || blocks[targetBlockIdx].type !== "scene") {
+    new import_obsidian6.Notice("Please place cursor inside a scene to rewrite.");
+    return;
+  }
+  const targetBlock = blocks[targetBlockIdx];
+  const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx).map((b) => b.contentLines.join("\n")).join("\n---\n");
+  const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6)).map((b) => b.contentLines.join("\n")).join("\n---\n");
+  new import_obsidian6.Notice("\u{1F916} AI is rewriting scene...");
+  const gemini = new GeminiService(apiKey);
+  const sceneBody = targetBlock.contentLines.join("\n").trim();
+  const response = await gemini.generateRewriteScene(sceneBody, before, after);
+  if (response.error) {
+    new import_obsidian6.Notice(`AI Error: ${response.error}`);
+    return;
+  }
+  const aiText = response.text;
+  const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
+  const contentParts = aiText.split(/CONTENT:\s*/i);
+  const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
+  let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
+  const bodyLines = newBody.split("\n");
+  if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
+    bodyLines.shift();
+    newBody = bodyLines.join("\n").trim();
+  }
+  const newContentLines = [targetBlock.contentLines[0]];
+  if (newSummary) {
+    newContentLines.push(`%%summary: ${newSummary}%%`);
+  }
+  const colorLine = targetBlock.contentLines.find((l) => l.trim().match(COLOR_TAG_REGEX));
+  if (colorLine) {
+    newContentLines.push(colorLine.trim());
+  }
+  if (newBody) {
+    newContentLines.push(newBody);
+  }
+  const startLine = targetBlock.originalStartLine;
+  const endLine = targetBlockIdx < blocks.length - 1 ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+  editor.replaceRange(
+    newContentLines.join("\n") + "\n",
+    { line: startLine, ch: 0 },
+    { line: endLine, ch: lines[endLine].length }
+  );
+  new import_obsidian6.Notice("\u2728 Scene rewritten!");
 }
 
 // suggest.ts

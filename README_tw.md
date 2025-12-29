@@ -1,4 +1,4 @@
-# Script Editor v1.6.1
+# Script Editor v1.8.0
 
 Script Editor 是提供 AI 輔助的標準美式劇本寫作工具，支援 Fountain-compatible 語法，並相容於繁體中文（或日、韓語系），撰寫時會自動檢測劇本語法，並內建提供 Story Board 卡片整理模式，可拖拉管理所有場次，加上 AI 自動整理各場次摘要等功能。
 
@@ -55,11 +55,12 @@ Script Editor 是提供 AI 輔助的標準美式劇本寫作工具，支援 Foun
 
 ![卡片功能](./image/README/cardfunctions.png)
 
-### AI 智能摘要 (AI Powered Summary)
+### AI 智能開發 (AI Powered Features)
 
 - 在 **故事板模式** 中，你可以使用 AI 輔助產生摘要。你需要先在設定頁面輸入 Gemini API Key。
-- **AI Beat 摘要**：整合 Gemini 2.0 Flash，根據上下文立即生成場景摘要或新場景。
+- **AI Beat 摘要**：整合最新 Gemini 2.5 Flash，根據上下文立即生成場景摘要或新場景。
 - **批量 AI 處理**：一鍵分析並摘要你的整部劇本。
+- **AI Rewrite 改寫**：在編輯器中點擊右鍵，可根據初稿筆記與前後文上下文，自動改寫為完整的劇本場景。
 
 ### 場景大綱視圖 (Scene Mode View)
 

@@ -1,7 +1,8 @@
 import { Menu, MenuItem, Editor, MarkdownView, TFile, TFolder, WorkspaceLeaf, Notice } from 'obsidian';
-import ScriptEditorPlugin, { SCRIPT_MARKERS, SCENE_REGEX, SUMMARY_REGEX } from './main';
+import ScriptEditorPlugin, { SCRIPT_MARKERS, SCENE_REGEX, SUMMARY_REGEX, COLOR_TAG_REGEX } from './main';
 import { SCENE_VIEW_TYPE } from './sceneView';
 import { DocxExporter } from './docxExporter';
+import { GeminiService } from './ai';
 
 export interface ExtendedMenuItem extends MenuItem {
     setSubmenu(): Menu;
@@ -83,10 +84,26 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
         }
     });
 
-    // 5. Context Menu
+    plugin.addCommand({
+        id: 'ai-rewrite-scene',
+        name: 'AI Rewrite Scene',
+        editorCallback: (editor: Editor) => aiSummaryAndRewrite(plugin, editor)
+    });
+
+    // 3. Editor Context Menu
     plugin.registerEvent(
         app.workspace.on("editor-menu", (menu: Menu, editor: Editor, view: MarkdownView) => {
             if (!plugin.isScript(view.file)) return;
+
+            menu.addSeparator();
+
+            menu.addItem((item) => {
+                item.setTitle("AI Rewrite Scene")
+                    .setIcon("sparkles")
+                    .onClick(() => aiSummaryAndRewrite(plugin, editor));
+            });
+
+            menu.addSeparator();
 
             menu.addItem((item: MenuItem) => {
                 item.setTitle("Script Editor").setIcon("film");
@@ -448,11 +465,10 @@ EXT. scene 01
 %%summary: summary of this scene.%%
 %%color: blue%%
 
-Here is Action description. Here is Action description. Here is Action description. 
-Here is Action description. 
+Here is Action description. Here is Action description. Here is Action description.
 
 BOB:
-It is too hard. I will never make
+It is too hard. I will never make it.
 
 MARY:
 You can make it.
@@ -464,7 +480,7 @@ INT. scene 02
 Here is Action description. Here is Action description. 
 
 BOB:
-It is too hard. I will never make
+It is too hard. I will never make it.
 
 MARY:
 You can make it.
@@ -483,4 +499,135 @@ You can make it.
     // Optional: Trigger rename immediately for better UX
     // @ts-ignore - internal API
     plugin.app.workspace.trigger("rename", newFile, newFile.path);
+}
+
+export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Editor) {
+    const apiKey = plugin.settings.geminiApiKey;
+    if (!apiKey) {
+        new Notice("Please set your Gemini API Key in settings first.");
+        return;
+    }
+
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    const cursor = editor.getCursor();
+    const cursorLine = cursor.line;
+
+    // --- Block Parsing Logic (identical to storyBoardView to maintain consistency) ---
+    interface ScriptBlock {
+        type: 'preamble' | 'h2' | 'scene';
+        title: string;
+        contentLines: string[];
+        originalStartLine: number;
+    }
+
+    const blocks: ScriptBlock[] = [];
+    let currentBlock: ScriptBlock = {
+        type: 'preamble',
+        title: '',
+        contentLines: [],
+        originalStartLine: 0
+    };
+    blocks.push(currentBlock);
+
+    lines.forEach((line: string, index: number) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('## ')) {
+            currentBlock = {
+                type: 'h2',
+                title: trimmed.replace(/^##\s+/, ''),
+                contentLines: [line],
+                originalStartLine: index
+            };
+            blocks.push(currentBlock);
+        } else if (SCENE_REGEX.test(trimmed)) {
+            currentBlock = {
+                type: 'scene',
+                title: trimmed,
+                contentLines: [line],
+                originalStartLine: index
+            };
+            blocks.push(currentBlock);
+        } else {
+            currentBlock.contentLines.push(line);
+        }
+    });
+
+    // Find the block containing the cursor
+    let targetBlockIdx = -1;
+    for (let i = 0; i < blocks.length; i++) {
+        const start = blocks[i].originalStartLine;
+        const end = (i < blocks.length - 1) ? blocks[i + 1].originalStartLine - 1 : lines.length - 1;
+        if (cursorLine >= start && cursorLine <= end) {
+            targetBlockIdx = i;
+            break;
+        }
+    }
+
+    if (targetBlockIdx === -1 || blocks[targetBlockIdx].type !== 'scene') {
+        new Notice("Please place cursor inside a scene to rewrite.");
+        return;
+    }
+
+    const targetBlock = blocks[targetBlockIdx];
+
+    // Extract Context
+    const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx)
+        .map(b => b.contentLines.join('\n')).join('\n---\n');
+    const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6))
+        .map(b => b.contentLines.join('\n')).join('\n---\n');
+
+    new Notice("🤖 AI is rewriting scene...");
+    const gemini = new GeminiService(apiKey);
+
+    // Use the full block content (including heading) so AI knows the intended location/time
+    const sceneBody = targetBlock.contentLines.join('\n').trim();
+
+    const response = await gemini.generateRewriteScene(sceneBody, before, after);
+
+    if (response.error) {
+        new Notice(`AI Error: ${response.error}`);
+        return;
+    }
+
+    // Parse AI Response
+    const aiText = response.text;
+    const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
+    const contentParts = aiText.split(/CONTENT:\s*/i);
+
+    const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
+    let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
+
+    // Safety: Strip any scene heading the AI might have accidentally included at the beginning
+    const bodyLines = newBody.split('\n');
+    if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
+        bodyLines.shift();
+        newBody = bodyLines.join('\n').trim();
+    }
+
+    // Reconstruct the block
+    const newContentLines = [targetBlock.contentLines[0]]; // Keep original Title
+    if (newSummary) {
+        newContentLines.push(`%%summary: ${newSummary}%%`);
+    }
+    // Keep existing color if present
+    const colorLine = targetBlock.contentLines.find(l => l.trim().match(COLOR_TAG_REGEX));
+    if (colorLine) {
+        newContentLines.push(colorLine.trim());
+    }
+    if (newBody) {
+        newContentLines.push(newBody);
+    }
+
+    // Replace in editor
+    const startLine = targetBlock.originalStartLine;
+    const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+
+    editor.replaceRange(
+        newContentLines.join('\n') + '\n',
+        { line: startLine, ch: 0 },
+        { line: endLine, ch: lines[endLine].length }
+    );
+
+    new Notice("✨ Scene rewritten!");
 }
