@@ -70,7 +70,6 @@ export default class ScriptEditorPlugin extends Plugin {
             (leaf) => new StoryBoardView(leaf)
         );
 
-
         // 2. Settings / Help Tab
         await this.loadSettings();
         this.addSettingTab(new ScriptEditorSettingTab(this.app, this));
