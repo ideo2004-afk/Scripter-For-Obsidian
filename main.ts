@@ -18,8 +18,8 @@ export const SCENE_REGEX = /^(###\s+|(?:\d+[.\s]\s*)?(?:INT|EXT|INT\/EXT|I\/E)[.
 export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
-export const CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
+export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30}(?:\s*[\(（].*?[\)）])?)([:：])\s*$/;
+export const CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{1,30}(?:\s*[\(（].*?[\)）])?$/;
 export const COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)\s*%%$/i;
 export const SUMMARY_REGEX = /^%%summary:\s*(.*?)\s*%%$/i;
 export const NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
@@ -223,6 +223,17 @@ export default class ScriptEditorPlugin extends Plugin {
         }
 
         return null;
+    }
+
+    /**
+     * 從原始文字中提取純淨的名字（去除 @, 冒號, 括號內容）
+     */
+    getCleanCharacterName(text: string): string {
+        let name = text;
+        if (name.startsWith(SCRIPT_MARKERS.CHARACTER)) name = name.substring(1);
+        name = name.replace(/[:：]\s*$/, '');
+        name = name.replace(/[\(（].*?[\)）]/g, '');
+        return name.trim();
     }
 
     async loadSettings() {

@@ -36,7 +36,7 @@ __export(main_exports, {
   SCRIPT_MARKERS: () => SCRIPT_MARKERS,
   SUMMARY_REGEX: () => SUMMARY_REGEX,
   TRANSITION_REGEX: () => TRANSITION_REGEX,
-  default: () => ScriptEditorPlugin5
+  default: () => ScriptEditorPlugin4
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian7 = require("obsidian");
@@ -20556,17 +20556,7 @@ function extractCharacterNames(content, plugin) {
     const format = plugin.detectExplicitFormat(trimmed);
     if (!format || format.typeKey !== "CHARACTER")
       return;
-    let name = "";
-    if (trimmed.startsWith(SCRIPT_MARKERS.CHARACTER)) {
-      name = trimmed.substring(1).trim();
-    } else if (CHARACTER_COLON_REGEX.test(trimmed)) {
-      const match = trimmed.match(CHARACTER_COLON_REGEX);
-      if (match)
-        name = match[1].trim();
-    } else if (CHARACTER_CAPS_REGEX2.test(trimmed)) {
-      name = trimmed.split("(")[0].trim();
-    }
-    name = name.replace(/[:：]+$/, "").trim();
+    const name = plugin.getCleanCharacterName(trimmed);
     if (name && name.length > 0) {
       charCounts.set(name, (charCounts.get(name) || 0) + 1);
     }
@@ -20619,8 +20609,8 @@ var SCENE_REGEX = /^(###\s+|(?:\d+[.\s]\s*)?(?:INT|EXT|INT\/EXT|I\/E)[.\s])/i;
 var TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 var PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 var OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
-var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
-var CHARACTER_CAPS_REGEX2 = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
+var CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30}(?:\s*[\(（].*?[\)）])?)([:：])\s*$/;
+var CHARACTER_CAPS_REGEX2 = /^(?=.*[A-Z])[A-Z0-9\s-]{1,30}(?:\s*[\(（].*?[\)）])?$/;
 var COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)\s*%%$/i;
 var SUMMARY_REGEX = /^%%summary:\s*(.*?)\s*%%$/i;
 var NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
@@ -20641,7 +20631,7 @@ var LP_CLASSES = {
   NOTE: "lp-note",
   SYMBOL: "lp-marker-symbol"
 };
-var ScriptEditorPlugin5 = class extends import_obsidian7.Plugin {
+var ScriptEditorPlugin4 = class extends import_obsidian7.Plugin {
   async onload() {
     this.docxExporter = new DocxExporter();
     this.registerView(
@@ -20763,6 +20753,17 @@ var ScriptEditorPlugin5 = class extends import_obsidian7.Plugin {
       return { cssClass: CSS_CLASSES.CHARACTER, removePrefix: false, markerLength: 0, typeKey: "CHARACTER" };
     }
     return null;
+  }
+  /**
+   * 從原始文字中提取純淨的名字（去除 @, 冒號, 括號內容）
+   */
+  getCleanCharacterName(text) {
+    let name = text;
+    if (name.startsWith(SCRIPT_MARKERS.CHARACTER))
+      name = name.substring(1);
+    name = name.replace(/[:：]\s*$/, "");
+    name = name.replace(/[\(（].*?[\)）]/g, "");
+    return name.trim();
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());

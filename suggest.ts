@@ -17,22 +17,8 @@ export function extractCharacterNames(content: string, plugin: ScriptEditorPlugi
         const format = plugin.detectExplicitFormat(trimmed);
         if (!format || format.typeKey !== 'CHARACTER') return;
 
-        // Extract the character name based on the format
-        let name = "";
-        if (trimmed.startsWith(SCRIPT_MARKERS.CHARACTER)) {
-            // @NAME format: remove the @ and take everything after it
-            name = trimmed.substring(1).trim();
-        } else if (CHARACTER_COLON_REGEX.test(trimmed)) {
-            // NAME: format: take the part before the colon
-            const match = trimmed.match(CHARACTER_COLON_REGEX);
-            if (match) name = match[1].trim();
-        } else if (CHARACTER_CAPS_REGEX.test(trimmed)) {
-            // ALL CAPS format: take the part before any parenthetical
-            name = trimmed.split('(')[0].trim();
-        }
-
-        // Strip trailing colons from all names (handles edge cases like @男人/妻子：)
-        name = name.replace(/[:：]+$/, '').trim();
+        // Use centralized normalization logic
+        const name = plugin.getCleanCharacterName(trimmed);
 
         if (name && name.length > 0) {
             charCounts.set(name, (charCounts.get(name) || 0) + 1);
