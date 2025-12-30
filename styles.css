@@ -136,11 +136,33 @@
         font-size: 0px !important;
         letter-spacing: -1ch !important;
         pointer-events: none !important;
+        /* Ensure the line itself collapses if it's purely a symbol block */
+        display: block !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
     }
 
     & h1,
     & .HyperMD-header-1 {
         text-align: center !important;
+    }
+
+    /* Force H3 (Scenes) to match Script Editor style */
+    & h3,
+    & .HyperMD-header-3 {
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        text-align: left !important;
+        margin-top: 2em !important;
+        margin-bottom: 0.5em !important;
+        /* Tighten bottom gap */
+        display: block !important;
+        color: var(--text-normal) !important;
+        font-size: var(--script-font-size) !important;
+        border-bottom: none !important;
     }
 }
 

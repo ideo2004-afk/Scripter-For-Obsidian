@@ -242,7 +242,11 @@ export class StoryBoardView extends ItemView {
                     document.addEventListener('mousedown', closeHandler);
                 });
 
-                cardEl.createDiv({ text: block.title, cls: 'storyboard-card-title' });
+                const displayTitle = block.title
+                    .replace(/^###\s*/, '')           // 移除開頭的 ###
+                    .trim();
+
+                cardEl.createDiv({ text: displayTitle, cls: 'storyboard-card-title' });
                 if (finalDisplaySummary) {
                     cardEl.createDiv({ text: finalDisplaySummary, cls: 'storyboard-card-summary' });
                 }

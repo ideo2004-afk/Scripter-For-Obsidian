@@ -1,6 +1,5 @@
 import { Menu, MenuItem, Editor, MarkdownView, TFile, TFolder, WorkspaceLeaf, Notice } from 'obsidian';
 import ScriptEditorPlugin, { SCRIPT_MARKERS, SCENE_REGEX, SUMMARY_REGEX, COLOR_TAG_REGEX } from './main';
-import { SCENE_VIEW_TYPE } from './sceneView';
 import { DocxExporter } from './docxExporter';
 import { GeminiService } from './ai';
 
@@ -61,13 +60,6 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
         }
     });
 
-    plugin.addCommand({
-        id: 'show-scene-mode',
-        name: 'Show scene mode',
-        callback: async () => {
-            await plugin.activateView();
-        }
-    });
 
     plugin.addCommand({
         id: 'export-summary',
@@ -242,7 +234,6 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
                     }
                 }
             }
-            plugin.refreshSceneView(false);
         })
     );
 }
@@ -266,16 +257,20 @@ export function renumberScenes(plugin: ScriptEditorPlugin, editor: Editor) {
     for (let i = 0; i < lineCount; i++) {
         const line = editor.getLine(i);
         const trimmed = line.trim();
-        const match = trimmed.match(SCENE_REGEX);
-        if (match) {
+
+        if (SCENE_REGEX.test(trimmed)) {
             sceneCounter++;
             const sceneNumStr = sceneCounter.toString().padStart(2, '0') + ". ";
-            let contentWithoutNumber = trimmed;
-            if (match[1]) {
-                contentWithoutNumber = trimmed.replace(/^\d+[.\s]\s*/, '');
-            }
-            contentWithoutNumber = contentWithoutNumber.trim();
-            const newLine = sceneNumStr + contentWithoutNumber;
+
+            // 清理原始行內容：移除舊的 "### ", "數字. ", 或 "."
+            let content = trimmed
+                .replace(/^###\s*/, '')           // 移除開頭的 ### (及其後的空白)
+                .replace(/^\d+[.\s]\s*/, '')      // 移除開頭的舊編號
+                .replace(/^\./, '');              // 移除舊的強制點號
+
+            content = content.trim();
+
+            const newLine = `### ${sceneNumStr}${content}`;
             if (newLine !== line) {
                 editor.setLine(i, newLine);
             }
@@ -358,30 +353,31 @@ export async function exportSummary(plugin: ScriptEditorPlugin, file: TFile) {
 
             // H1
             if (trimmed.startsWith('# ')) {
-                summaryLines.push(trimmed + '\n');
+                summaryLines.push(trimmed);
             }
             // H2
             else if (trimmed.startsWith('## ')) {
-                summaryLines.push('\n' + trimmed + '\n');
+                summaryLines.push('\n' + trimmed);
             }
             // Scene Heading
             else if (SCENE_REGEX.test(trimmed)) {
-                const match = trimmed.match(SCENE_REGEX);
-                // Extract Scene Number (Group 1)
-                if (match && match[1]) {
-                    currentScene = match[1].trim(); // Only the number, e.g., "1."
+                // 提取編號：匹配可能存在的 ### 後的數字，或者開頭的數字
+                const match = trimmed.match(/^(?:###\s+)?(\d+[.\s])/);
+                if (match) {
+                    currentScene = match[1].trim(); // 得到 "01." 或 "1."
                 } else {
-                    currentScene = trimmed; // Fallback if no number
+                    currentScene = ""; // 沒找到編號則留空
                 }
             }
             // Summary Tag
-            else if (currentScene && SUMMARY_REGEX.test(trimmed)) {
+            else if (currentScene !== null && SUMMARY_REGEX.test(trimmed)) {
                 const summaryMatch = trimmed.match(SUMMARY_REGEX);
                 if (summaryMatch) {
                     const sceneSummary = summaryMatch[1].trim();
-                    // Format: Number Summary (e.g., 1. summary text)
-                    summaryLines.push(`${currentScene} ${sceneSummary}\n`);
-                    currentScene = null; // Found it, reset
+                    // 格式化：01. 總結內容
+                    const prefix = currentScene ? `${currentScene} ` : "";
+                    summaryLines.push(`${prefix}${sceneSummary}`);
+                    currentScene = null; // 重置，直到下一個場景
                 }
             }
         });
@@ -449,7 +445,7 @@ FADE IN
 
 ## Act One
 
-EXT. Opening scene (1)
+### 01. EXT. Opening scene (1)
 **Script Editor** does not affect other .md files. You can create new .md files pre-configured with this **frontmatter** ( cssclasses: script or fountain).
 
 %%note: or in Context Menu, Right-click on any folder and select New script.%%
@@ -461,16 +457,16 @@ MARY:
 (emotion)
 And here.
 
-.Theme Stated (5)
+### 02. Theme Stated (5)
 **Story Board Mode** is visual grid view of your screenplay's scenes with full drag-and-drop support.
 
-.Set-Up (1-10)
+### 03. Set-Up (1-10)
 In **Story Board Mode**, you can use AI aid for summaries. You need to enter your **Gemini API Key** in the settings page first.
 
-.Catalyst (12)
+### 04. Catalyst (12)
 **AI Rewrite Scene**: Right-click anywhere in the editor to rewrite your rough notes into a professional screenplay scene based on surrounding context.
 
-INT. Debate (12-25)
+### 05. INT. Debate (12-25)
 Type \`@\` anywhere in your script, can quickly insert character names with frequency-based autocomplete.
 
 %%note: There are more features, you can find them by yourself. Have fun... %%
@@ -480,25 +476,25 @@ FADE OUT
 
 ## Act Two (25)
 
-.B Story (30)
+### 06. B Story (30)
 
-.Fun and Games (30-55)
+### 07. Fun and Games (30-55)
 
 
 ## Midpoint (55)
 
-.Bad Guys Close In (55-75)
+### 08. Bad Guys Close In (55-75)
 
-.All Is Lost (75)
+### 09. All Is Lost (75)
 
-.Dark Night of the Soul (75-85)
+### 10. Dark Night of the Soul (75-85)
 
 
 ## Act Three (85)
 
-.Finale (85-110)
+### 11. Finale (85-110)
 
-.Final Image (110)
+### 12. Final Image (110)
 `;
 
     const templateFile = plugin.app.vault.getAbstractFileByPath('Script Templet.md');

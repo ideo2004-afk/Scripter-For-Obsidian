@@ -21,20 +21,26 @@ export function registerReadingView(plugin: ScriptEditorPlugin) {
             if (node.dataset.scriptProcessed) return;
 
             const text = node.innerText?.trim() || "";
-            if (!text) return;
 
-            // Obsidian naturally hides %% tags in Reading Mode, 
-            // but we check them here to ensure we don't style them as 'Action'
-            if (COLOR_TAG_REGEX.test(text) || SUMMARY_REGEX.test(text) || NOTE_REGEX.test(text)) {
+            // 1. 如果是標題，直接略過讓 Obsidian 渲染 (H1-H6)
+            if (text.startsWith('#')) return;
+
+            // 2. 核心修正：即便 text 是空的 (Obsidian 隱藏了內容)，
+            // 或者整塊都是 metadata，我們都要把這個 node (段落) 徹底藏起來。
+            const lines = text.split('\n');
+            const isPureMetadataOrEmpty = !text || lines.every(line => {
+                const tl = line.trim();
+                return !tl || COLOR_TAG_REGEX.test(tl) || SUMMARY_REGEX.test(tl) || (NOTE_REGEX.test(tl) && tl.startsWith('%%'));
+            });
+
+            if (isPureMetadataOrEmpty) {
                 node.style.display = 'none';
+                node.style.margin = '0';
                 node.dataset.scriptProcessed = "true";
                 return;
             }
 
-            if (text.startsWith('#')) return;
-
-            // Split merged paragraphs by newline to handle Reading Mode's merging behavior
-            const lines = text.split('\n');
+            // 3. 處理包含混合內容的段落
             node.empty();
             node.dataset.scriptProcessed = "true";
 
@@ -42,7 +48,10 @@ export function registerReadingView(plugin: ScriptEditorPlugin) {
 
             lines.forEach((line) => {
                 const trimmedLine = line.trim();
+                // 如果這行本身是標籤或空的，就略過
                 if (!trimmedLine) return;
+                const isTag = COLOR_TAG_REGEX.test(trimmedLine) || SUMMARY_REGEX.test(trimmedLine) || (NOTE_REGEX.test(trimmedLine) && trimmedLine.startsWith('%%'));
+                if (isTag) return;
 
                 const format = plugin.detectExplicitFormat(trimmedLine);
                 let cssClass = CSS_CLASSES.ACTION;
@@ -52,13 +61,15 @@ export function registerReadingView(plugin: ScriptEditorPlugin) {
                     cssClass = format.cssClass;
                     currentType = format.typeKey;
                 } else if (previousType === 'CHARACTER' || previousType === 'PARENTHETICAL' || previousType === 'DIALOGUE') {
-                    // Inherited Dialogue logic
                     cssClass = CSS_CLASSES.DIALOGUE;
                     currentType = 'DIALOGUE';
                 }
 
                 const lineEl = node.createDiv({ cls: cssClass });
                 lineEl.setText(trimmedLine);
+
+                // 移除內容 Div 的預設間距以免疊加
+                lineEl.style.margin = "0";
 
                 previousType = currentType;
             });

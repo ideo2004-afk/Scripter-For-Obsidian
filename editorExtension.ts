@@ -99,7 +99,7 @@ export function livePreviewExtension(plugin: ScriptEditorPlugin) {
                     else if (SCENE_REGEX.test(text)) {
                         lpClass = LP_CLASSES.SCENE;
                         currentType = 'SCENE';
-                        if (!isCursorOnLine && text.startsWith('.')) {
+                        if (!isCursorOnLine && (text.startsWith('.') || text.startsWith('###'))) {
                             shouldHideMarker = true;
                         }
                     }
@@ -139,7 +139,9 @@ export function livePreviewExtension(plugin: ScriptEditorPlugin) {
                     }
 
                     if (shouldHideMarker) {
-                        lineDecos.push({ from: line.from, to: line.from + 1, deco: hiddenDeco });
+                        const format = plugin.detectExplicitFormat(text);
+                        const markerLen = format?.markerLength || 1;
+                        lineDecos.push({ from: line.from, to: line.from + markerLen, deco: hiddenDeco });
                     }
 
                     // Add all collected mark decorations in correct order

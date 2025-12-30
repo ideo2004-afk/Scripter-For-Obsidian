@@ -1,6 +1,5 @@
 import { Plugin, MarkdownView, Editor, Menu, App, PluginSettingTab, Setting, MenuItem, TFile, TFolder, Notice, WorkspaceLeaf, editorLivePreviewField, EditorSuggest, EditorPosition, EditorSuggestTriggerInfo, EditorSuggestContext } from 'obsidian';
 import { DocxExporter } from './docxExporter';
-import { SceneView, SCENE_VIEW_TYPE } from './sceneView';
 import { StoryBoardView, STORYBOARD_VIEW_TYPE } from './storyBoardView';
 import { registerReadingView } from './readingView';
 import { livePreviewExtension } from './editorExtension';
@@ -15,14 +14,14 @@ export const SCRIPT_MARKERS = {
 };
 
 // Regex Definitions
-export const SCENE_REGEX = /^(\d+[.\s]\s*)?((?:INT|EXT|INT\/EXT|I\/E)[.\s]|\.[^.])/i;
+export const SCENE_REGEX = /^(###\s+|(?:\d+[.\s]\s*)?(?:INT|EXT|INT\/EXT|I\/E)[.\s])/i;
 export const TRANSITION_REGEX = /^((?:FADE (?:IN|OUT)|[A-Z\s]+ TO)(?:[:.]?))$/;
 export const PARENTHETICAL_REGEX = /^(\(|（).+(\)|）)\s*$/i;
 export const OS_DIALOGUE_REGEX = /^(OS|VO|ＯＳ|ＶＯ)[:：]\s*/i;
 export const CHARACTER_COLON_REGEX = /^([\u4e00-\u9fa5A-Z0-9\s-]{1,30})([:：])\s*$/;
 export const CHARACTER_CAPS_REGEX = /^(?=.*[A-Z])[A-Z0-9\s-]{2,30}(\s+\([^)]+\))?$/;
-export const COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)%%$/i;
-export const SUMMARY_REGEX = /^%%summary:\s*(.*)%%$/i;
+export const COLOR_TAG_REGEX = /^%%color:\s*(red|blue|green|yellow|purple|none|无|無)\s*%%$/i;
+export const SUMMARY_REGEX = /^%%summary:\s*(.*?)\s*%%$/i;
 export const NOTE_REGEX = /^%%note:\s*(.*)%%$/i;
 
 // CSS Classes (Reading Mode / PDF)
@@ -61,11 +60,6 @@ export default class ScriptEditorPlugin extends Plugin {
     async onload() {
         this.docxExporter = new DocxExporter();
 
-        // 1. Register Scene View
-        this.registerView(
-            SCENE_VIEW_TYPE,
-            (leaf) => new SceneView(leaf)
-        );
         this.registerView(
             STORYBOARD_VIEW_TYPE,
             (leaf) => new StoryBoardView(leaf)
@@ -116,65 +110,13 @@ export default class ScriptEditorPlugin extends Plugin {
         // 5. Context Menus & Buttons
         registerMenus(this);
 
-        this.registerEvent(
-            this.app.metadataCache.on('changed', () => {
-                this.refreshSceneView(true);
-                this.refreshStoryBoard(true);
-            })
-        );
+        this.app.metadataCache.on('changed', () => {
+            this.refreshStoryBoard(true);
+        })
 
-        // 7. Auto-initialize Scene View in Sidebar
-        this.app.workspace.onLayoutReady(async () => {
-            await this.initSceneView();
-        });
 
         // 8. Register Character Suggest (Editor Logic)
         this.registerEditorSuggest(new CharacterSuggest(this.app, this));
-    }
-    async initSceneView() {
-        if (this.app.workspace.getLeavesOfType(SCENE_VIEW_TYPE).length > 0) {
-            return;
-        }
-        await this.app.workspace.getRightLeaf(false).setViewState({
-            type: SCENE_VIEW_TYPE,
-            active: false,
-        });
-    }
-
-    async activateView() {
-        const { workspace } = this.app;
-
-        let leaf: WorkspaceLeaf | null = null;
-        const leaves = workspace.getLeavesOfType(SCENE_VIEW_TYPE);
-
-        if (leaves.length > 0) {
-            leaf = leaves[0];
-        } else {
-            leaf = workspace.getRightLeaf(false);
-            if (leaf) {
-                await leaf.setViewState({ type: SCENE_VIEW_TYPE, active: true });
-            }
-        }
-
-        if (leaf) {
-            workspace.revealLeaf(leaf);
-        }
-    }
-
-    private lastActiveFile: string | null = null;
-    refreshSceneView(force = false) {
-        const activeFile = this.app.workspace.getActiveFile();
-        if (!force && activeFile?.path === this.lastActiveFile) {
-            return; // Skip if just a focus change within the same file
-        }
-        this.lastActiveFile = activeFile?.path || null;
-
-        const leaves = this.app.workspace.getLeavesOfType(SCENE_VIEW_TYPE);
-        leaves.forEach(leaf => {
-            if (leaf.view instanceof SceneView) {
-                leaf.view.updateView();
-            }
-        });
     }
     refreshStoryBoard(force = false) {
         const activeFile = this.app.workspace.getActiveFile();
@@ -228,11 +170,11 @@ export default class ScriptEditorPlugin extends Plugin {
 
     detectExplicitFormat(text: string): ScriptFormat | null {
         if (SCENE_REGEX.test(text)) {
-            const isForcedScene = text.startsWith('.');
+            const isH3Scene = text.startsWith('###');
             return {
                 cssClass: CSS_CLASSES.SCENE,
-                removePrefix: isForcedScene,
-                markerLength: isForcedScene ? 1 : 0,
+                removePrefix: isH3Scene,
+                markerLength: isH3Scene ? 3 : 0,
                 typeKey: 'SCENE'
             };
         }

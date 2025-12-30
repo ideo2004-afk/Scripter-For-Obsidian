@@ -43,10 +43,11 @@ export class DocxExporter {
 
             // 1. Scene Heading
             if (SCENE_REGEX.test(trimmed)) {
-                let displayText = trimmed;
-                if (trimmed.startsWith('.')) {
-                    displayText = trimmed.substring(1).trim();
-                }
+                let displayText = trimmed
+                    .replace(/^###\s*/, '')           // 移除 ###
+                    .replace(/^\./, '')               // 移除舊的點號
+                    .trim();
+
                 paragraphs.push(new Paragraph({
                     children: [new TextRun({ text: displayText.toUpperCase(), bold: true, font: "Courier New", size: 24 })],
                     spacing: { before: 240, after: 120 }
