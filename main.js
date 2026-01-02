@@ -20383,67 +20383,52 @@ cssclasses:
 - script
 ---
 
-# Title: SAVE CAT
+# Your Title
 
 Author: Your Name.
 Genre: Monster in the House/Out of the Bottle/Superhero/etc.
 
-**Script Editor** is an AI Powered Fountain-compatible screenplay editor with intelligent formatting detection, Story Board, AI aid rewrite and CJK support (Chinese, Japanese, Korean).
-
-FADE IN
 
 ## Act One
 
-### 01. EXT. Opening scene (1)
-**Script Editor** does not affect other .md files. You can create new .md files pre-configured with this **frontmatter** ( cssclasses: script or fountain).
+FADE IN
 
-%%note: or in Context Menu, Right-click on any folder and select New script.%%
+ ### EXT. COUNTRY CHURCH -- DAY
+%%summary: A small church lets out its congregation on a sunny day.%%
 
-@BOB
-Text below Character, will automatically Dialogue.
+The white cross on the church steeple stands against bluesky. The church bell rings, resonating.
 
-MARY:
-(emotion)
-And here.
+Mass has let out. Small church, small congregation. The dirt road in front is lined with pick-up trucks and parishioners on foot heading to outlying farms and homes.
 
-### 02. Theme Stated (5)
-**Story Board Mode** is visual grid view of your screenplay's scenes with full drag-and-drop support.
+An old two-story house sits across the road. Lone.
 
-### 03. Set-Up (1-10)
-In **Story Board Mode**, you can use AI aid for summaries. You need to enter your **Gemini API Key** in the settings page first.
+%%note: Here is a note.%%
 
-### 04. Catalyst (12)
-**AI Rewrite Scene**: Right-click anywhere in the editor to rewrite your rough notes into a professional screenplay scene based on surrounding context.
+### INT. OLD HOUSE -- DAY
 
-### 05. INT. Debate (12-25)
-Type \`@\` anywhere in your script, can quickly insert character names with frequency-based autocomplete.
+Sunlight comes through the soot on the windows, more brown than bright. SOMERSET, 45, in a suit and tie, stands in this empty second-story room. He looks around, at the ceiling, at the worn wooden floor, at the peeling wallpaper on the walls.
 
-%%note: There are more features, you can find them by yourself. Have fun... %%
+Somerset walks to one wall where the current wallpaper is peeled away to reveal flowery wallpaper underneath. He runs his finger across one of the pale red roses that decorates
+ the older paper. He pushes the grime away, brings the rose out more clearly. He pulls at the edge of the paper, carefully ripping off a roughly squared section with the rose at its center.
 
-FADE OUT
+He studies it in his hand.
 
+### EXT. OLD HOUSE -- DAY
 
-## Act Two (25)
+Birds sing. Somerset stands, pondering the forested landscape.
 
-### 06. B Story (30)
+@MAN'S VOICE (O.S.)
+Is something wrong?
 
-### 07. Fun and Games (30-55)
+Somerset does not respond. The MAN, in an ill-fitting real estate jacket, is seated on the hood of a dirty Ford Thunderbird. He holds a check and a booklet of receipts.
 
+@MAN (CONT)
+Is something the matter?
 
-## Midpoint (55)
+@SOMERSET
+No... no. There's nothing wrong.
 
-### 08. Bad Guys Close In (55-75)
-
-### 09. All Is Lost (75)
-
-### 10. Dark Night of the Soul (75-85)
-
-
-## Act Three (85)
-
-### 11. Finale (85-110)
-
-### 12. Final Image (110)
+Somerset still seems distant.
 `;
   const templateFile = plugin.app.vault.getAbstractFileByPath("Script Templet.md");
   if (templateFile instanceof import_obsidian5.TFile) {
