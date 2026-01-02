@@ -42,6 +42,7 @@ export class GeminiService {
         }
     }
 
+
     /**
      * Specialized prompt for generating a scene summary (Beat)
      */
@@ -61,33 +62,6 @@ ${content}`;
         return this.callGemini(prompt);
     }
 
-    /**
-     * Specialized prompt for generating a new scene from context
-     */
-    async generateNewScene(before: string, after: string): Promise<GeminiResponse> {
-        const prompt = `Act as a professional Hollywood screenwriter.
-Based on the surrounding scenes (Context Before and After), generate a LOGICAL and EVOCATIVE new scene to fill this gap.
-Requirements:
-1. Provide a Scene Heading.
-2. Provide an short ONE-sentence summary of the new scene.
-3. Provide concise script content (Action/Dialogue) in standard screenplay format.
-4. ALL content (Heading, Summary, Script) MUST be in the same language and script as the provided Context.
-5. CRITICAL: If the input is in Traditional Chinese (繁體中文), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (簡體中文).
-6. CRITICAL: Return PLAIN TEXT ONLY. Do NOT use HTML tags (e.g., <b>, <i>) or Markdown bolding (**). All character names and dialogue must be plain text.
-
-Format your response as:
-TITLE: [Heading]
-SUMMARY: [Summary text]
-CONTENT:
-[Initial Script lines]
-
-Context Before:
-${before}
-
-Context After:
-${after}`;
-        return this.callGemini(prompt);
-    }
 
     /**
      * Specialized prompt for bulk processing
@@ -115,25 +89,59 @@ ${transcript}`;
      * Specialized prompt for rewriting/generating scene content based on rough notes and context
      */
     async generateRewriteScene(content: string, before: string, after: string): Promise<GeminiResponse> {
-        const prompt = `Act as a professional Hollywood screenwriter.
-Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene.
+        const prompt = `CRITICAL LANGUAGE RULE: 
+- You MUST respond in the SAME language and style as the "Current Scene Content" and "Context". 
+- If the content is in Traditional Chinese, respond in Traditional Chinese. 
+- If it's a mix of Mandarin and Taiwanese (台語), maintain that specific mix.
+- DO NOT default to English for action lines or narration unless the source content is in English.
+
+Role: You are a professional Screenwriter and Script Doctor.
+Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene while STRICTLY maintaining the original language style.
+
 Requirements:
 1. Maintain consistency with the provided "Context Before" and "Context After".
 2. Expand rough notes into lean, cinematic Action descriptions and natural Dialogue.
-3. SHOW, DON'T TELL: Focus only on what can be SEEN or HEARD on screen. Avoid unfilmable descriptions (e.g., internal thoughts, smells, or abstract concepts like "absolute silence").
-4. BE EFFICIENT: Avoid filler or "purple prose". Every line should advance the story with professional screenplay brevity.
-5. If "Current Scene Content" consists only of a heading, generate a logical new scene that bridges the context.
-6. Include a short ONE-sentence summary of the new scene.
-7. Provide the rewritten script content (Action/Dialogue) in standard screenplay format.
-8. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section, as it is already kept by the editor.
-9. CRITICAL: Maintain the original language for all character names and dialogue as they appear in the "Context" or "Current Scene Content". 
-10. CRITICAL: If the input is in Traditional Chinese (繁體中文), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (簡體中文).
-11. CRITICAL: Return PLAIN TEXT ONLY. Do NOT use HTML tags (e.g., <b>, <i>) or Markdown bolding (**). All character names and dialogue must be plain text.
-12. Return ONLY the following format (no intros or outros):
+3. SHOW, DON'T TELL: Focus only on what can be SEEN or HEARD on screen. 
+4. BE EFFICIENT: Avoid filler or "purple prose".
+5. Provide the rewritten script content in standard screenplay format.
+6. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section.
+7. Return ONLY the following format:
 
-SUMMARY: [One sentence summary]
+SUMMARY: [One sentence summary in Traditional Chinese]
 CONTENT:
-[The rewritten script content (excluding the heading)]
+[The rewritten script content in Traditional Chinese]
+
+Context Before:
+${before}
+
+Context After:
+${after}
+
+Current Scene Content:
+${content}`;
+        return this.callGemini(prompt);
+    }
+    /**
+     * Specialized prompt for AI Brainstorm: Asking provocative questions to help the writer
+     */
+    async generateBrainstormQuestions(content: string, before: string, after: string): Promise<GeminiResponse> {
+        const prompt = `CRITICAL LANGUAGE RULE:
+- You MUST ask questions in the SAME language and script as the provided "Context".
+- If the script uses Traditional Chinese and Taiwanese, your questions must reflect that same linguistic context.
+- DO NOT use English or any other language unless the source content is in that language.
+
+Role: You are a professional Screenwriter and Script Doctor.
+Goal: Challenge and inspire the writer by asking deep, provocative questions in the original language of the script.
+
+CONTEXT RULES:
+1. "Context Before" (preceding 5 scenes) and "Context After" (following 5 scenes).
+2. The "Current Scene Content" is a GAP between these two contexts. Ask questions that help fill this gap logically.
+3. Focus on character Need/Want, intentions, and conflicts.
+4. CRITICAL: Do NOT provide any plot suggestions or direction. 
+
+OUTPUT REQUIREMENTS:
+1. Return ONLY the questions, separated by newlines. 
+2. Do NOT include any intro, outro, headers, or Markdown formatting.
 
 Context Before:
 ${before}

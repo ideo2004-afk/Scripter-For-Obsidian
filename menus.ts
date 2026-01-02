@@ -77,6 +77,12 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
     });
 
     plugin.addCommand({
+        id: 'ai-brainstorm',
+        name: 'AI Brainstorm',
+        editorCallback: (editor: Editor) => aiBrainstorm(plugin, editor)
+    });
+
+    plugin.addCommand({
         id: 'ai-rewrite-scene',
         name: 'AI Rewrite Scene',
         editorCallback: (editor: Editor) => aiSummaryAndRewrite(plugin, editor)
@@ -95,6 +101,12 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
                     .onClick(() => {
                         void plugin.openStoryBoard(view.leaf, view.file!);
                     });
+            });
+
+            menu.addItem((item) => {
+                item.setTitle("AI Brainstorm")
+                    .setIcon("brain-circuit")
+                    .onClick(() => aiBrainstorm(plugin, editor));
             });
 
             menu.addItem((item) => {
@@ -520,6 +532,130 @@ FADE OUT
     plugin.app.workspace.trigger("rename", newFile, newFile.path);
 }
 
+
+export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
+    const apiKey = plugin.settings.geminiApiKey;
+    if (!apiKey) {
+        new Notice("Please set your Gemini API Key in settings first.");
+        return;
+    }
+
+    const content = editor.getValue();
+    const lines = content.split('\n');
+    const cursor = editor.getCursor();
+    const cursorLine = cursor.line;
+
+    // --- Block Parsing Logic ---
+    interface ScriptBlock {
+        type: 'preamble' | 'h2' | 'scene';
+        title: string;
+        contentLines: string[];
+        originalStartLine: number;
+    }
+
+    const blocks: ScriptBlock[] = [];
+    let currentBlock: ScriptBlock = {
+        type: 'preamble',
+        title: '',
+        contentLines: [],
+        originalStartLine: 0
+    };
+    blocks.push(currentBlock);
+
+    lines.forEach((line: string, index: number) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('## ')) {
+            currentBlock = {
+                type: 'h2',
+                title: trimmed.replace(/^##\s+/, ''),
+                contentLines: [line],
+                originalStartLine: index
+            };
+            blocks.push(currentBlock);
+        } else if (SCENE_REGEX.test(trimmed)) {
+            currentBlock = {
+                type: 'scene',
+                title: trimmed,
+                contentLines: [line],
+                originalStartLine: index
+            };
+            blocks.push(currentBlock);
+        } else {
+            currentBlock.contentLines.push(line);
+        }
+    });
+
+    // Find the block containing the cursor
+    let targetBlockIdx = -1;
+    for (let i = 0; i < blocks.length; i++) {
+        const start = blocks[i].originalStartLine;
+        const end = (i < blocks.length - 1) ? blocks[i + 1].originalStartLine - 1 : lines.length - 1;
+        if (cursorLine >= start && cursorLine <= end) {
+            targetBlockIdx = i;
+            break;
+        }
+    }
+
+    if (targetBlockIdx === -1 || blocks[targetBlockIdx].type !== 'scene') {
+        new Notice("Please place cursor inside a scene to brainstorm.");
+        return;
+    }
+
+    const targetBlock = blocks[targetBlockIdx];
+
+    // Extract Context (5 scenes before and after)
+    const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx)
+        .map(b => b.contentLines.join('\n')).join('\n---\n');
+    const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6))
+        .map(b => b.contentLines.join('\n')).join('\n---\n');
+
+    new Notice("🤖 AI Brainstorming...");
+    const gemini = new GeminiService(apiKey);
+
+    const sceneBody = targetBlock.contentLines.join('\n').trim();
+    const response = await gemini.generateBrainstormQuestions(sceneBody, before, after);
+
+    if (response.error) {
+        new Notice(`AI Error: ${response.error}`);
+        return;
+    }
+
+    // Parse AI Response
+    const aiText = response.text.trim();
+    if (!aiText) {
+        new Notice("AI returned no questions.");
+        return;
+    }
+
+    // Reconstruct the block with questions appended as a Markdown list
+    const newContentLines = [...targetBlock.contentLines];
+
+    // Add a separator if the last line isn't empty
+    if (newContentLines.length > 0 && newContentLines[newContentLines.length - 1].trim() !== "") {
+        newContentLines.push("");
+    }
+
+    // Add questions in list format
+    const questionLines = aiText.split('\n').filter(l => l.trim() !== "");
+    questionLines.forEach(q => {
+        // Clean up any AI-generated list markers just in case
+        const cleanQ = q.trim().replace(/^[-*•]\s*/, '');
+        newContentLines.push(`- ${cleanQ}`);
+    });
+
+    // Replace in editor
+    const startLine = targetBlock.originalStartLine;
+    const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+
+    editor.replaceRange(
+        newContentLines.join('\n') + '\n',
+        { line: startLine, ch: 0 },
+        { line: endLine, ch: lines[endLine].length }
+    );
+
+    new Notice("🧠 Brainstorming questions added!");
+}
+
 export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Editor) {
     const apiKey = plugin.settings.geminiApiKey;
     if (!apiKey) {
@@ -590,63 +726,92 @@ export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Ed
 
     const targetBlock = blocks[targetBlockIdx];
 
-    // Extract Context
+    // Extract Context (5 scenes before and after)
     const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx)
         .map(b => b.contentLines.join('\n')).join('\n---\n');
     const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6))
         .map(b => b.contentLines.join('\n')).join('\n---\n');
 
-    new Notice("🤖 AI is rewriting scene...");
-    const gemini = new GeminiService(apiKey);
-
     // Use the full block content (including heading) so AI knows the intended location/time
-    const sceneBody = targetBlock.contentLines.join('\n').trim();
+    const sceneBody = targetBlock.contentLines.slice(1)
+        .filter(l => !SUMMARY_REGEX.test(l) && !COLOR_TAG_REGEX.test(l) && l.trim() !== "")
+        .join('\n').trim();
 
-    const response = await gemini.generateRewriteScene(sceneBody, before, after);
+    const isSceneEmpty = sceneBody.length < 5; // Very short or empty
+
+    const gemini = new GeminiService(apiKey);
+    let response;
+    if (isSceneEmpty) {
+        new Notice("🤖 Scene is empty. Switching to Brainstorm...");
+        response = await gemini.generateBrainstormQuestions(targetBlock.contentLines[0], before, after);
+    } else {
+        new Notice("🤖 AI is rewriting scene...");
+        response = await gemini.generateRewriteScene(targetBlock.contentLines.join('\n').trim(), before, after);
+    }
 
     if (response.error) {
         new Notice(`AI Error: ${response.error}`);
         return;
     }
 
-    // Parse AI Response
     const aiText = response.text;
-    const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
-    const contentParts = aiText.split(/CONTENT:\s*/i);
 
-    const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
-    let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
+    if (isSceneEmpty) {
+        // Handle Brainstorm response (append questions to existing block)
+        const newContentLines = [...targetBlock.contentLines];
+        if (newContentLines.length > 0 && newContentLines[newContentLines.length - 1].trim() !== "") {
+            newContentLines.push("");
+        }
+        const questionLines = aiText.split('\n').filter((l: string) => l.trim() !== "");
 
-    // Safety: Strip any scene heading the AI might have accidentally included at the beginning
-    const bodyLines = newBody.split('\n');
-    if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
-        bodyLines.shift();
-        newBody = bodyLines.join('\n').trim();
+        questionLines.forEach((q: string) => {
+            const cleanQ = q.trim().replace(/^[-*•]\s*/, '');
+            newContentLines.push(`- ${cleanQ}`);
+        });
+
+        const startLine = targetBlock.originalStartLine;
+        const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+        editor.replaceRange(
+            newContentLines.join('\n') + '\n',
+            { line: startLine, ch: 0 },
+            { line: endLine, ch: lines[endLine].length }
+        );
+        new Notice("🧠 Scene was empty, questions added instead.");
+
+    } else {
+        // Handle Rewrite response (standard replacement)
+        const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
+        const contentParts = aiText.split(/CONTENT:\s*/i);
+
+        const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
+        let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
+
+        // Safety: Strip any scene heading the AI might have accidentally included
+        const bodyLines = newBody.split('\n');
+        if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
+            bodyLines.shift();
+            newBody = bodyLines.join('\n').trim();
+        }
+
+        const newContentLines = [targetBlock.contentLines[0]]; // Keep original Title
+        if (newSummary) {
+            newContentLines.push(`%%summary: ${newSummary}%%`);
+        }
+        const colorLine = targetBlock.contentLines.find(l => l.trim().match(COLOR_TAG_REGEX));
+        if (colorLine) {
+            newContentLines.push(colorLine.trim());
+        }
+        if (newBody) {
+            newContentLines.push(newBody);
+        }
+
+        const startLine = targetBlock.originalStartLine;
+        const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+        editor.replaceRange(
+            newContentLines.join('\n') + '\n',
+            { line: startLine, ch: 0 },
+            { line: endLine, ch: lines[endLine].length }
+        );
+        new Notice("✨ Scene rewritten!");
     }
-
-    // Reconstruct the block
-    const newContentLines = [targetBlock.contentLines[0]]; // Keep original Title
-    if (newSummary) {
-        newContentLines.push(`%%summary: ${newSummary}%%`);
-    }
-    // Keep existing color if present
-    const colorLine = targetBlock.contentLines.find(l => l.trim().match(COLOR_TAG_REGEX));
-    if (colorLine) {
-        newContentLines.push(colorLine.trim());
-    }
-    if (newBody) {
-        newContentLines.push(newBody);
-    }
-
-    // Replace in editor
-    const startLine = targetBlock.originalStartLine;
-    const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
-
-    editor.replaceRange(
-        newContentLines.join('\n') + '\n',
-        { line: startLine, ch: 0 },
-        { line: endLine, ch: lines[endLine].length }
-    );
-
-    new Notice("✨ Scene rewritten!");
 }

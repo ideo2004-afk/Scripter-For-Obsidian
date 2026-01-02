@@ -602,16 +602,13 @@ export class StoryBoardView extends ItemView {
         const content = block.contentLines.slice(1).join('\n').trim();
         const hasContent = content.length > 20;
 
-        new Notice(hasContent ? "Generating AI summary..." : "Generating new scene from context...");
-
-        let response;
-        if (hasContent) {
-            response = await gemini.generateSceneSummary(content);
-        } else {
-            const before = blocks.slice(Math.max(0, blockIdx - 5), blockIdx).map(b => b.contentLines.join('\n')).join('\n---\n');
-            const after = blocks.slice(blockIdx + 1, Math.min(blocks.length, blockIdx + 6)).map(b => b.contentLines.join('\n')).join('\n---\n');
-            response = await gemini.generateNewScene(before, after);
+        if (!hasContent) {
+            new Notice("Cannot generate AI Beat: Scene has no content. Please write something first.");
+            return;
         }
+
+        new Notice("Generating AI summary...");
+        const response = await gemini.generateSceneSummary(content);
 
         if (response.error) {
             new Notice(`AI Error: ${response.error}`);
@@ -620,27 +617,13 @@ export class StoryBoardView extends ItemView {
 
         const aiText = response.text;
 
-        if (hasContent) {
-            // Apply summary to existing block
-            const cleanedText = aiText.trim()
-                .replace(/^Summary:\s*/i, '')
-                .replace(/^\[|\]$/g, '') // Strip leading/trailing brackets
-                .trim();
-            block.contentLines = block.contentLines.filter((l: string) => !SUMMARY_REGEX.test(l));
-            block.contentLines.splice(1, 0, `%%summary: ${cleanedText}%%`);
-        } else {
-            const titleMatch = aiText.match(/TITLE:\s*(.*)/i);
-            const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
-            const contentParts = aiText.split(/CONTENT:\s*/i);
-
-            const newTitle = titleMatch ? titleMatch[1].trim() : (block.contentLines[0] || "INT. NEW SCENE - DAY");
-            const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
-            const newContent = contentParts.length > 1 ? contentParts[1].trim() : "";
-
-            block.contentLines = [newTitle];
-            if (newSummary) block.contentLines.push(`%%summary: ${newSummary}%%`);
-            if (newContent) block.contentLines.push(...newContent.split('\n'));
-        }
+        // Apply summary to existing block
+        const cleanedText = aiText.trim()
+            .replace(/^Summary:\s*/i, '')
+            .replace(/^\[|\]$/g, '') // Strip leading/trailing brackets
+            .trim();
+        block.contentLines = block.contentLines.filter((l: string) => !SUMMARY_REGEX.test(l));
+        block.contentLines.splice(1, 0, `%%summary: ${cleanedText}%%`);
 
         const fullContent = blocks.map(b => b.contentLines.join('\n')).join('\n');
         if (this.file) {

@@ -19182,33 +19182,6 @@ ${content}`;
     return this.callGemini(prompt);
   }
   /**
-   * Specialized prompt for generating a new scene from context
-   */
-  async generateNewScene(before, after) {
-    const prompt = `Act as a professional Hollywood screenwriter.
-Based on the surrounding scenes (Context Before and After), generate a LOGICAL and EVOCATIVE new scene to fill this gap.
-Requirements:
-1. Provide a Scene Heading.
-2. Provide an short ONE-sentence summary of the new scene.
-3. Provide concise script content (Action/Dialogue) in standard screenplay format.
-4. ALL content (Heading, Summary, Script) MUST be in the same language and script as the provided Context.
-5. CRITICAL: If the input is in Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (\u7C21\u9AD4\u4E2D\u6587).
-6. CRITICAL: Return PLAIN TEXT ONLY. Do NOT use HTML tags (e.g., <b>, <i>) or Markdown bolding (**). All character names and dialogue must be plain text.
-
-Format your response as:
-TITLE: [Heading]
-SUMMARY: [Summary text]
-CONTENT:
-[Initial Script lines]
-
-Context Before:
-${before}
-
-Context After:
-${after}`;
-    return this.callGemini(prompt);
-  }
-  /**
    * Specialized prompt for bulk processing
    */
   async generateBulkSummaries(transcript) {
@@ -19233,25 +19206,59 @@ ${transcript}`;
    * Specialized prompt for rewriting/generating scene content based on rough notes and context
    */
   async generateRewriteScene(content, before, after) {
-    const prompt = `Act as a professional Hollywood screenwriter.
-Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene.
+    const prompt = `CRITICAL LANGUAGE RULE: 
+- You MUST respond in the SAME language and style as the "Current Scene Content" and "Context". 
+- If the content is in Traditional Chinese, respond in Traditional Chinese. 
+- If it's a mix of Mandarin and Taiwanese (\u53F0\u8A9E), maintain that specific mix.
+- DO NOT default to English for action lines or narration unless the source content is in English.
+
+Role: You are a professional Screenwriter and Script Doctor.
+Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene while STRICTLY maintaining the original language style.
+
 Requirements:
 1. Maintain consistency with the provided "Context Before" and "Context After".
 2. Expand rough notes into lean, cinematic Action descriptions and natural Dialogue.
-3. SHOW, DON'T TELL: Focus only on what can be SEEN or HEARD on screen. Avoid unfilmable descriptions (e.g., internal thoughts, smells, or abstract concepts like "absolute silence").
-4. BE EFFICIENT: Avoid filler or "purple prose". Every line should advance the story with professional screenplay brevity.
-5. If "Current Scene Content" consists only of a heading, generate a logical new scene that bridges the context.
-6. Include a short ONE-sentence summary of the new scene.
-7. Provide the rewritten script content (Action/Dialogue) in standard screenplay format.
-8. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section, as it is already kept by the editor.
-9. CRITICAL: Maintain the original language for all character names and dialogue as they appear in the "Context" or "Current Scene Content". 
-10. CRITICAL: If the input is in Traditional Chinese (\u7E41\u9AD4\u4E2D\u6587), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (\u7C21\u9AD4\u4E2D\u6587).
-11. CRITICAL: Return PLAIN TEXT ONLY. Do NOT use HTML tags (e.g., <b>, <i>) or Markdown bolding (**). All character names and dialogue must be plain text.
-12. Return ONLY the following format (no intros or outros):
+3. SHOW, DON'T TELL: Focus only on what can be SEEN or HEARD on screen. 
+4. BE EFFICIENT: Avoid filler or "purple prose".
+5. Provide the rewritten script content in standard screenplay format.
+6. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section.
+7. Return ONLY the following format:
 
-SUMMARY: [One sentence summary]
+SUMMARY: [One sentence summary in Traditional Chinese]
 CONTENT:
-[The rewritten script content (excluding the heading)]
+[The rewritten script content in Traditional Chinese]
+
+Context Before:
+${before}
+
+Context After:
+${after}
+
+Current Scene Content:
+${content}`;
+    return this.callGemini(prompt);
+  }
+  /**
+   * Specialized prompt for AI Brainstorm: Asking provocative questions to help the writer
+   */
+  async generateBrainstormQuestions(content, before, after) {
+    const prompt = `CRITICAL LANGUAGE RULE:
+- You MUST ask questions in the SAME language and script as the provided "Context".
+- If the script uses Traditional Chinese and Taiwanese, your questions must reflect that same linguistic context.
+- DO NOT use English or any other language unless the source content is in that language.
+
+Role: You are a professional Screenwriter and Script Doctor.
+Goal: Challenge and inspire the writer by asking deep, provocative questions in the original language of the script.
+
+CONTEXT RULES:
+1. "Context Before" (preceding 5 scenes) and "Context After" (following 5 scenes).
+2. The "Current Scene Content" is a GAP between these two contexts. Ask questions that help fill this gap logically.
+3. Focus on character Need/Want, intentions, and conflicts.
+4. CRITICAL: Do NOT provide any plot suggestions or direction. 
+
+OUTPUT REQUIREMENTS:
+1. Return ONLY the questions, separated by newlines. 
+2. Do NOT include any intro, outro, headers, or Markdown formatting.
 
 Context Before:
 ${before}
@@ -19716,37 +19723,20 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
     const block = blocks[blockIdx];
     const content = block.contentLines.slice(1).join("\n").trim();
     const hasContent = content.length > 20;
-    new import_obsidian2.Notice(hasContent ? "Generating AI summary..." : "Generating new scene from context...");
-    let response;
-    if (hasContent) {
-      response = await gemini.generateSceneSummary(content);
-    } else {
-      const before = blocks.slice(Math.max(0, blockIdx - 5), blockIdx).map((b) => b.contentLines.join("\n")).join("\n---\n");
-      const after = blocks.slice(blockIdx + 1, Math.min(blocks.length, blockIdx + 6)).map((b) => b.contentLines.join("\n")).join("\n---\n");
-      response = await gemini.generateNewScene(before, after);
+    if (!hasContent) {
+      new import_obsidian2.Notice("Cannot generate AI Beat: Scene has no content. Please write something first.");
+      return;
     }
+    new import_obsidian2.Notice("Generating AI summary...");
+    const response = await gemini.generateSceneSummary(content);
     if (response.error) {
       new import_obsidian2.Notice(`AI Error: ${response.error}`);
       return;
     }
     const aiText = response.text;
-    if (hasContent) {
-      const cleanedText = aiText.trim().replace(/^Summary:\s*/i, "").replace(/^\[|\]$/g, "").trim();
-      block.contentLines = block.contentLines.filter((l) => !SUMMARY_REGEX.test(l));
-      block.contentLines.splice(1, 0, `%%summary: ${cleanedText}%%`);
-    } else {
-      const titleMatch = aiText.match(/TITLE:\s*(.*)/i);
-      const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
-      const contentParts = aiText.split(/CONTENT:\s*/i);
-      const newTitle = titleMatch ? titleMatch[1].trim() : block.contentLines[0] || "INT. NEW SCENE - DAY";
-      const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
-      const newContent = contentParts.length > 1 ? contentParts[1].trim() : "";
-      block.contentLines = [newTitle];
-      if (newSummary)
-        block.contentLines.push(`%%summary: ${newSummary}%%`);
-      if (newContent)
-        block.contentLines.push(...newContent.split("\n"));
-    }
+    const cleanedText = aiText.trim().replace(/^Summary:\s*/i, "").replace(/^\[|\]$/g, "").trim();
+    block.contentLines = block.contentLines.filter((l) => !SUMMARY_REGEX.test(l));
+    block.contentLines.splice(1, 0, `%%summary: ${cleanedText}%%`);
     const fullContent = blocks.map((b) => b.contentLines.join("\n")).join("\n");
     if (this.file) {
       await this.app.vault.modify(this.file, fullContent);
@@ -20110,6 +20100,11 @@ function registerMenus(plugin) {
     }
   });
   plugin.addCommand({
+    id: "ai-brainstorm",
+    name: "AI Brainstorm",
+    editorCallback: (editor) => aiBrainstorm(plugin, editor)
+  });
+  plugin.addCommand({
     id: "ai-rewrite-scene",
     name: "AI Rewrite Scene",
     editorCallback: (editor) => aiSummaryAndRewrite(plugin, editor)
@@ -20123,6 +20118,9 @@ function registerMenus(plugin) {
         item.setTitle("Open Story Board").setIcon("layout-grid").onClick(() => {
           void plugin.openStoryBoard(view.leaf, view.file);
         });
+      });
+      menu.addItem((item) => {
+        item.setTitle("AI Brainstorm").setIcon("brain-circuit").onClick(() => aiBrainstorm(plugin, editor));
       });
       menu.addItem((item) => {
         item.setTitle("AI Rewrite Scene").setIcon("sparkles").onClick(() => aiSummaryAndRewrite(plugin, editor));
@@ -20458,6 +20456,93 @@ FADE OUT
   await leaf.openFile(newFile);
   plugin.app.workspace.trigger("rename", newFile, newFile.path);
 }
+async function aiBrainstorm(plugin, editor) {
+  const apiKey = plugin.settings.geminiApiKey;
+  if (!apiKey) {
+    new import_obsidian5.Notice("Please set your Gemini API Key in settings first.");
+    return;
+  }
+  const content = editor.getValue();
+  const lines = content.split("\n");
+  const cursor = editor.getCursor();
+  const cursorLine = cursor.line;
+  const blocks = [];
+  let currentBlock = {
+    type: "preamble",
+    title: "",
+    contentLines: [],
+    originalStartLine: 0
+  };
+  blocks.push(currentBlock);
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) {
+      currentBlock = {
+        type: "h2",
+        title: trimmed.replace(/^##\s+/, ""),
+        contentLines: [line],
+        originalStartLine: index
+      };
+      blocks.push(currentBlock);
+    } else if (SCENE_REGEX.test(trimmed)) {
+      currentBlock = {
+        type: "scene",
+        title: trimmed,
+        contentLines: [line],
+        originalStartLine: index
+      };
+      blocks.push(currentBlock);
+    } else {
+      currentBlock.contentLines.push(line);
+    }
+  });
+  let targetBlockIdx = -1;
+  for (let i = 0; i < blocks.length; i++) {
+    const start = blocks[i].originalStartLine;
+    const end = i < blocks.length - 1 ? blocks[i + 1].originalStartLine - 1 : lines.length - 1;
+    if (cursorLine >= start && cursorLine <= end) {
+      targetBlockIdx = i;
+      break;
+    }
+  }
+  if (targetBlockIdx === -1 || blocks[targetBlockIdx].type !== "scene") {
+    new import_obsidian5.Notice("Please place cursor inside a scene to brainstorm.");
+    return;
+  }
+  const targetBlock = blocks[targetBlockIdx];
+  const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx).map((b) => b.contentLines.join("\n")).join("\n---\n");
+  const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6)).map((b) => b.contentLines.join("\n")).join("\n---\n");
+  new import_obsidian5.Notice("\u{1F916} AI Brainstorming...");
+  const gemini = new GeminiService(apiKey);
+  const sceneBody = targetBlock.contentLines.join("\n").trim();
+  const response = await gemini.generateBrainstormQuestions(sceneBody, before, after);
+  if (response.error) {
+    new import_obsidian5.Notice(`AI Error: ${response.error}`);
+    return;
+  }
+  const aiText = response.text.trim();
+  if (!aiText) {
+    new import_obsidian5.Notice("AI returned no questions.");
+    return;
+  }
+  const newContentLines = [...targetBlock.contentLines];
+  if (newContentLines.length > 0 && newContentLines[newContentLines.length - 1].trim() !== "") {
+    newContentLines.push("");
+  }
+  const questionLines = aiText.split("\n").filter((l) => l.trim() !== "");
+  questionLines.forEach((q) => {
+    const cleanQ = q.trim().replace(/^[-*•]\s*/, "");
+    newContentLines.push(`- ${cleanQ}`);
+  });
+  const startLine = targetBlock.originalStartLine;
+  const endLine = targetBlockIdx < blocks.length - 1 ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+  editor.replaceRange(
+    newContentLines.join("\n") + "\n",
+    { line: startLine, ch: 0 },
+    { line: endLine, ch: lines[endLine].length }
+  );
+  new import_obsidian5.Notice("\u{1F9E0} Brainstorming questions added!");
+}
 async function aiSummaryAndRewrite(plugin, editor) {
   const apiKey = plugin.settings.geminiApiKey;
   if (!apiKey) {
@@ -20514,43 +20599,70 @@ async function aiSummaryAndRewrite(plugin, editor) {
   const targetBlock = blocks[targetBlockIdx];
   const before = blocks.slice(Math.max(0, targetBlockIdx - 5), targetBlockIdx).map((b) => b.contentLines.join("\n")).join("\n---\n");
   const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6)).map((b) => b.contentLines.join("\n")).join("\n---\n");
-  new import_obsidian5.Notice("\u{1F916} AI is rewriting scene...");
+  const sceneBody = targetBlock.contentLines.slice(1).filter((l) => !SUMMARY_REGEX.test(l) && !COLOR_TAG_REGEX.test(l) && l.trim() !== "").join("\n").trim();
+  const isSceneEmpty = sceneBody.length < 5;
   const gemini = new GeminiService(apiKey);
-  const sceneBody = targetBlock.contentLines.join("\n").trim();
-  const response = await gemini.generateRewriteScene(sceneBody, before, after);
+  let response;
+  if (isSceneEmpty) {
+    new import_obsidian5.Notice("\u{1F916} Scene is empty. Switching to Brainstorm...");
+    response = await gemini.generateBrainstormQuestions(targetBlock.contentLines[0], before, after);
+  } else {
+    new import_obsidian5.Notice("\u{1F916} AI is rewriting scene...");
+    response = await gemini.generateRewriteScene(targetBlock.contentLines.join("\n").trim(), before, after);
+  }
   if (response.error) {
     new import_obsidian5.Notice(`AI Error: ${response.error}`);
     return;
   }
   const aiText = response.text;
-  const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
-  const contentParts = aiText.split(/CONTENT:\s*/i);
-  const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
-  let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
-  const bodyLines = newBody.split("\n");
-  if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
-    bodyLines.shift();
-    newBody = bodyLines.join("\n").trim();
+  if (isSceneEmpty) {
+    const newContentLines = [...targetBlock.contentLines];
+    if (newContentLines.length > 0 && newContentLines[newContentLines.length - 1].trim() !== "") {
+      newContentLines.push("");
+    }
+    const questionLines = aiText.split("\n").filter((l) => l.trim() !== "");
+    questionLines.forEach((q) => {
+      const cleanQ = q.trim().replace(/^[-*•]\s*/, "");
+      newContentLines.push(`- ${cleanQ}`);
+    });
+    const startLine = targetBlock.originalStartLine;
+    const endLine = targetBlockIdx < blocks.length - 1 ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+    editor.replaceRange(
+      newContentLines.join("\n") + "\n",
+      { line: startLine, ch: 0 },
+      { line: endLine, ch: lines[endLine].length }
+    );
+    new import_obsidian5.Notice("\u{1F9E0} Scene was empty, questions added instead.");
+  } else {
+    const summaryMatch = aiText.match(/SUMMARY:\s*(.*)/i);
+    const contentParts = aiText.split(/CONTENT:\s*/i);
+    const newSummary = summaryMatch ? summaryMatch[1].trim() : "";
+    let newBody = contentParts.length > 1 ? contentParts[1].trim() : "";
+    const bodyLines = newBody.split("\n");
+    if (bodyLines.length > 0 && SCENE_REGEX.test(bodyLines[0].trim())) {
+      bodyLines.shift();
+      newBody = bodyLines.join("\n").trim();
+    }
+    const newContentLines = [targetBlock.contentLines[0]];
+    if (newSummary) {
+      newContentLines.push(`%%summary: ${newSummary}%%`);
+    }
+    const colorLine = targetBlock.contentLines.find((l) => l.trim().match(COLOR_TAG_REGEX));
+    if (colorLine) {
+      newContentLines.push(colorLine.trim());
+    }
+    if (newBody) {
+      newContentLines.push(newBody);
+    }
+    const startLine = targetBlock.originalStartLine;
+    const endLine = targetBlockIdx < blocks.length - 1 ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
+    editor.replaceRange(
+      newContentLines.join("\n") + "\n",
+      { line: startLine, ch: 0 },
+      { line: endLine, ch: lines[endLine].length }
+    );
+    new import_obsidian5.Notice("\u2728 Scene rewritten!");
   }
-  const newContentLines = [targetBlock.contentLines[0]];
-  if (newSummary) {
-    newContentLines.push(`%%summary: ${newSummary}%%`);
-  }
-  const colorLine = targetBlock.contentLines.find((l) => l.trim().match(COLOR_TAG_REGEX));
-  if (colorLine) {
-    newContentLines.push(colorLine.trim());
-  }
-  if (newBody) {
-    newContentLines.push(newBody);
-  }
-  const startLine = targetBlock.originalStartLine;
-  const endLine = targetBlockIdx < blocks.length - 1 ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
-  editor.replaceRange(
-    newContentLines.join("\n") + "\n",
-    { line: startLine, ch: 0 },
-    { line: endLine, ch: lines[endLine].length }
-  );
-  new import_obsidian5.Notice("\u2728 Scene rewritten!");
 }
 
 // suggest.ts
