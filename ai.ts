@@ -51,9 +51,10 @@ export class GeminiService {
 Sumarize the following scene content into a concise BEAT.
 Requirements:
 1. Provide exactly ONE short, punchy sentence summarising the scene.
-2. Language Requirement: Detect the language of the Scene Content and respond in the EXACT SAME language (e.g., if input is Traditional Chinese, respond in Traditional Chinese; if English, respond in English).
-3. Do not include any other text, intros, explanations, or quotes.
-4. Return PLAIN TEXT ONLY. Do NOT use HTML tags (e.g., <b>, <i>) or Markdown bolding (**).
+2. Language Constraint: YOU MUST RESPOND IN THE SAME LANGUAGE AS THE SCENE CONTENT. NEVER TRANSLATE. If the input is in Traditional Chinese, output ONLY Traditional Chinese. If English, output English.
+3. Priority: Ignore the English language used in this prompt; match the language of the script's dialogue and action.
+4. Do not include any other text, intros, explanations, or quotes.
+5. Return PLAIN TEXT ONLY. Do NOT use HTML tags or Markdown bolding.
 Format: Just the summary text.
 
 Scene Content:
@@ -73,10 +74,10 @@ Please generate a concise ONE-sentence summary for each of those marked blocks.
 
 Requirements:
 1. Provide exactly ONE short, punchy sentence per marked block.
-2. Language Requirement: Detect the language of each block's content and respond in the EXACT SAME language (e.g., if input is Traditional Chinese, respond in Traditional Chinese; if English, respond in English).
+2. Language Constraint: NEVER TRANSLATE. Match the language of the script's content. If a block is in Traditional Chinese, the summary MUST be in Traditional Chinese.
 3. Return PLAIN TEXT ONLY. Do NOT use HTML tags or Markdown bolding.
 4. Respond ONLY with a list of summaries in the following format:
-BLOCK X: Summary text
+BLOCK X: Summary text (in the same language as the block)
 
 Screenplay:
 ${transcript}`;
@@ -98,12 +99,12 @@ Requirement:
 4. BE EFFICIENT: Avoid filler or "purple prose".
 5. Provide the rewritten script content in standard screenplay format.
 6. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section.
-7. Language Requirement: Detect the language of the source content ("Context Before" and "Current Scene Content") and respond in the EXACT SAME language (e.g., if input is Traditional Chinese, respond in Traditional Chinese; if English, respond in English).
+7. Language Constraint: NEVER TRANSLATE. You MUST detect the language of the script's dialogue and action (e.g., Traditional Chinese) and respond in that EXACT SAME language. Do not be confused by technical headers or this prompt.
 8. Return ONLY the following format:
 
-SUMMARY: [One sentence summary]
+SUMMARY: [One sentence summary in the source language]
 CONTENT:
-[The rewritten script content]
+[The rewritten script content in the source language]
 
 Context Before:
 ${before}
@@ -126,7 +127,7 @@ Goal: Challenge and inspire the writer by analyzing the "Current Scene Content" 
 TASK:
 1. Analyze the scene's current dramatic status, focusing on character Need/Want, intentions, and conflicts and ask 2-3 provocative questions that help fill the gap logically to make the transition from Before to After feel earned.
 2. Do NOT provide any plot suggestions or direction. 
-3. Language Requirement: Detect the language of the input content and respond in the EXACT SAME language (e.g., if input is Traditional Chinese, respond in Traditional Chinese; if English, respond in English).
+3. Language Constraint: NEVER TRANSLATE. Respond in the EXACT SAME language as the input content (e.g., Traditional Chinese if the script is in Chinese).
 4. Return PLAIN TEXT ONLY.
 
 Context Before:
