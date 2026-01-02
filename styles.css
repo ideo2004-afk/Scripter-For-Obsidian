@@ -227,15 +227,41 @@
     margin-bottom: 20px;
 }
 
+.storyboard-h2-section.is-collapsed .storyboard-grid {
+    display: none;
+}
+
 .storyboard-h2-title {
-    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    font-size: 1.25em;
     font-weight: 700;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
     color: var(--text-accent);
-    border-left: 4px solid var(--text-accent);
-    padding-left: 15px;
     text-transform: uppercase;
     letter-spacing: 1px;
+    cursor: pointer;
+    border-left: 4px solid var(--text-accent);
+    padding: 2px 15px;
+    transition: background-color 0.15s ease;
+    border-radius: 4px;
+}
+
+.storyboard-h2-title:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.storyboard-h2-fold-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    color: var(--text-muted);
+}
+
+.storyboard-h2-fold-icon svg {
+    width: 18px;
+    height: 18px;
 }
 
 .storyboard-card {

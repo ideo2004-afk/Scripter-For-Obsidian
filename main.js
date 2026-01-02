@@ -19265,6 +19265,7 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
   constructor(leaf) {
     super(leaf);
     this.file = null;
+    this.collapsedSections = /* @__PURE__ */ new Set();
   }
   getViewType() {
     return STORYBOARD_VIEW_TYPE;
@@ -19368,8 +19369,20 @@ var StoryBoardView = class extends import_obsidian2.ItemView {
     let currentGrid = null;
     blocks.forEach((block, blockIdx) => {
       if (block.type === "h2") {
-        const h2Div = container.createDiv({ cls: "storyboard-h2-section" });
-        h2Div.createEl("h3", { text: block.title, cls: "storyboard-h2-title" });
+        const isCollapsed = this.collapsedSections.has(block.title);
+        const h2Div = container.createDiv({ cls: `storyboard-h2-section ${isCollapsed ? "is-collapsed" : ""}` });
+        const h3 = h2Div.createEl("h3", { cls: "storyboard-h2-title" });
+        const foldIconSpan = h3.createSpan({ cls: "storyboard-h2-fold-icon" });
+        (0, import_obsidian2.setIcon)(foldIconSpan, isCollapsed ? "chevron-right" : "chevron-down");
+        h3.createSpan({ text: block.title });
+        h3.onclick = () => {
+          if (isCollapsed) {
+            this.collapsedSections.delete(block.title);
+          } else {
+            this.collapsedSections.add(block.title);
+          }
+          void this.updateView();
+        };
         currentGrid = h2Div.createDiv({ cls: "storyboard-grid" });
       } else if (block.type === "scene") {
         if (!currentGrid) {
