@@ -77,9 +77,9 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
     });
 
     plugin.addCommand({
-        id: 'ai-brainstorm',
-        name: 'AI Brainstorm',
-        editorCallback: (editor: Editor) => aiBrainstorm(plugin, editor)
+        id: 'ai-script-doctor',
+        name: 'AI Script Doctor',
+        editorCallback: (editor: Editor) => aiScriptDoctor(plugin, editor)
     });
 
     plugin.addCommand({
@@ -104,9 +104,9 @@ export function registerMenus(plugin: ScriptEditorPlugin) {
             });
 
             menu.addItem((item) => {
-                item.setTitle("AI Brainstorm")
+                item.setTitle("AI Script Doctor")
                     .setIcon("brain-circuit")
-                    .onClick(() => aiBrainstorm(plugin, editor));
+                    .onClick(() => aiScriptDoctor(plugin, editor));
             });
 
             menu.addItem((item) => {
@@ -533,7 +533,7 @@ FADE OUT
 }
 
 
-export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
+export async function aiScriptDoctor(plugin: ScriptEditorPlugin, editor: Editor) {
     const apiKey = plugin.settings.geminiApiKey;
     if (!apiKey) {
         new Notice("Please set your Gemini API Key in settings first.");
@@ -597,7 +597,7 @@ export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
     }
 
     if (targetBlockIdx === -1 || blocks[targetBlockIdx].type !== 'scene') {
-        new Notice("Please place cursor inside a scene to brainstorm.");
+        new Notice("Please place cursor inside a scene to use Script Doctor.");
         return;
     }
 
@@ -609,7 +609,7 @@ export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
     const after = blocks.slice(targetBlockIdx + 1, Math.min(blocks.length, targetBlockIdx + 6))
         .map(b => b.contentLines.join('\n')).join('\n---\n');
 
-    new Notice("🤖 AI Brainstorming...");
+    new Notice("🤖 Consulting Script Doctor...");
     const gemini = new GeminiService(apiKey);
 
     const sceneBody = targetBlock.contentLines.join('\n').trim();
@@ -627,7 +627,7 @@ export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
         return;
     }
 
-    // Reconstruct the block with questions appended as a Markdown list
+    // Reconstruct the block with questions appended as a note
     const newContentLines = [...targetBlock.contentLines];
 
     // Add a separator if the last line isn't empty
@@ -635,13 +635,13 @@ export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
         newContentLines.push("");
     }
 
-    // Add questions in list format
-    const questionLines = aiText.split('\n').filter(l => l.trim() !== "");
-    questionLines.forEach(q => {
-        // Clean up any AI-generated list markers just in case
-        const cleanQ = q.trim().replace(/^[-*•]\s*/, '');
-        newContentLines.push(`- ${cleanQ}`);
-    });
+    // Use the note format (%%note: %%) for side-bar display
+    const noteContent = aiText.split('\n')
+        .map(l => l.trim())
+        .filter(l => l !== "")
+        .join(' ');
+
+    newContentLines.push(`%%note: ${noteContent} %%`);
 
     // Replace in editor
     const startLine = targetBlock.originalStartLine;
@@ -653,7 +653,7 @@ export async function aiBrainstorm(plugin: ScriptEditorPlugin, editor: Editor) {
         { line: endLine, ch: lines[endLine].length }
     );
 
-    new Notice("🧠 Brainstorming questions added!");
+    new Notice("🧠 Script Doctor questions added!");
 }
 
 export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Editor) {
@@ -742,7 +742,7 @@ export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Ed
     const gemini = new GeminiService(apiKey);
     let response;
     if (isSceneEmpty) {
-        new Notice("🤖 Scene is empty. Switching to Brainstorm...");
+        new Notice("🤖 Scene is empty. Consulting Script Doctor...");
         response = await gemini.generateBrainstormQuestions(targetBlock.contentLines[0], before, after);
     } else {
         new Notice("🤖 AI is rewriting scene...");
@@ -762,12 +762,12 @@ export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Ed
         if (newContentLines.length > 0 && newContentLines[newContentLines.length - 1].trim() !== "") {
             newContentLines.push("");
         }
-        const questionLines = aiText.split('\n').filter((l: string) => l.trim() !== "");
+        const noteContent = aiText.split('\n')
+            .map((l: string) => l.trim())
+            .filter((l: string) => l !== "")
+            .join(' ');
 
-        questionLines.forEach((q: string) => {
-            const cleanQ = q.trim().replace(/^[-*•]\s*/, '');
-            newContentLines.push(`- ${cleanQ}`);
-        });
+        newContentLines.push(`%%note: ${noteContent} %%`);
 
         const startLine = targetBlock.originalStartLine;
         const endLine = (targetBlockIdx < blocks.length - 1) ? blocks[targetBlockIdx + 1].originalStartLine - 1 : lines.length - 1;
@@ -776,7 +776,7 @@ export async function aiSummaryAndRewrite(plugin: ScriptEditorPlugin, editor: Ed
             { line: startLine, ch: 0 },
             { line: endLine, ch: lines[endLine].length }
         );
-        new Notice("🧠 Scene was empty, questions added instead.");
+        new Notice("🧠 Scene was empty. Script Doctor's questions added.");
 
     } else {
         // Handle Rewrite response (standard replacement)

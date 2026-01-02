@@ -89,13 +89,8 @@ ${transcript}`;
      * Specialized prompt for rewriting/generating scene content based on rough notes and context
      */
     async generateRewriteScene(content: string, before: string, after: string): Promise<GeminiResponse> {
-        const prompt = `CRITICAL LANGUAGE RULE: 
-- You MUST respond in the SAME language and style as the "Current Scene Content" and "Context". 
-- If the content is in Traditional Chinese, respond in Traditional Chinese. 
-- If it's a mix of Mandarin and Taiwanese (台語), maintain that specific mix.
-- DO NOT default to English for action lines or narration unless the source content is in English.
-
-Role: You are a professional Screenwriter and Script Doctor.
+        const prompt = `        
+Role: You are a professional Screenwriter.
 Task: Rewrite the "Current Scene Content" into a full, evocative screenplay scene while STRICTLY maintaining the original language style.
 
 Requirements:
@@ -105,52 +100,45 @@ Requirements:
 4. BE EFFICIENT: Avoid filler or "purple prose".
 5. Provide the rewritten script content in standard screenplay format.
 6. DO NOT include the Scene Heading (e.g., INT. / EXT.) in the "CONTENT" section.
-7. Return ONLY the following format:
+7. The rewritten script content MUST be in the same language as the context. If the input is in Traditional Chinese (繁體中文), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (簡體中文).
+8. Return ONLY the following format:
 
-SUMMARY: [One sentence summary in Traditional Chinese]
+SUMMARY: [One sentence summary]
 CONTENT:
-[The rewritten script content in Traditional Chinese]
+[The rewritten script content]
 
 Context Before:
 ${before}
 
-Context After:
-${after}
-
 Current Scene Content:
-${content}`;
+${content}
+
+Context After:
+${after}`;
         return this.callGemini(prompt);
     }
     /**
-     * Specialized prompt for AI Brainstorm: Asking provocative questions to help the writer
+     * Specialized prompt for AI Script Doctor: Asking provocative questions to help the writer
      */
     async generateBrainstormQuestions(content: string, before: string, after: string): Promise<GeminiResponse> {
-        const prompt = `CRITICAL LANGUAGE RULE:
-- You MUST ask questions in the SAME language and script as the provided "Context".
-- If the script uses Traditional Chinese and Taiwanese, your questions must reflect that same linguistic context.
-- DO NOT use English or any other language unless the source content is in that language.
+        const prompt = `
+Role: You are a sharp Script Doctor.
+Goal: Challenge and inspire the writer by analyzing the "Current Scene Content" as a GAP between contexts.
 
-Role: You are a professional Screenwriter and Script Doctor.
-Goal: Challenge and inspire the writer by asking deep, provocative questions in the original language of the script.
-
-CONTEXT RULES:
-1. "Context Before" (preceding 5 scenes) and "Context After" (following 5 scenes).
-2. The "Current Scene Content" is a GAP between these two contexts. Ask questions that help fill this gap logically.
-3. Focus on character Need/Want, intentions, and conflicts.
-4. CRITICAL: Do NOT provide any plot suggestions or direction. 
-
-OUTPUT REQUIREMENTS:
-1. Return ONLY the questions, separated by newlines. 
-2. Do NOT include any intro, outro, headers, or Markdown formatting.
+TASK:
+1. Provide a BRIEF analysis of the scene's current dramatic status, focusing on character Need/Want, intentions, and conflicts. Then ask 2-3 provocative questions that help fill the gap logically to make the transition from Before to After feel earned.
+2. Do NOT provide any plot suggestions or direction. 
+3. The analysis and questions MUST be in the same language as the context. If the input is in Traditional Chinese (繁體中文), you must respond in Traditional Chinese. Do NOT use Simplified Chinese (簡體中文).
+4. CRITICAL: Return PLAIN TEXT ONLY.
 
 Context Before:
 ${before}
 
-Context After:
-${after}
-
 Current Scene Content:
-${content}`;
+${content}
+
+Context After:
+${after}`;
         return this.callGemini(prompt);
     }
 }
